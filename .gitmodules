@@ -1,0 +1,3 @@
+[submodule "cooklang-spec"]
+	path = cooklang-spec
+	url = https://github.com/cooklang/spec.git
