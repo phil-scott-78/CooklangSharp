@@ -24,9 +24,9 @@ internal class Parser
             recipe = recipe with { Metadata = metadata };
         }
 
-        // Parse recipe content
-        var steps = ParseSteps(lines, lineIndex);
-        recipe = recipe with { Steps = steps };
+        // Parse recipe content with sections
+        var sections = ParseSections(lines, lineIndex);
+        recipe = recipe with { Sections = sections };
 
         return recipe;
     }
@@ -64,18 +64,43 @@ internal class Parser
         return metadata;
     }
 
-    private List<Step> ParseSteps(string[] lines, int startIndex)
+    private List<Section> ParseSections(string[] lines, int startIndex)
     {
-        var steps = new List<Step>();
+        var sections = new List<Section>();
+        var currentSection = new Section { Name = null, Content = new List<SectionContent>() };
+        var stepNumber = 1;
         
         for (var i = startIndex; i < lines.Length; i++)
         {
             var line = lines[i];
             
+            // Check if this is a section header
+            if (IsSectionLine(line))
+            {
+                // Save current section if it has content
+                if (currentSection.Content.Count > 0)
+                {
+                    sections.Add(currentSection);
+                    stepNumber = 1; // Reset step numbering for new section
+                }
+                
+                // Parse section header and create new section
+                var sectionName = ParseSectionHeader(line);
+                currentSection = new Section { Name = sectionName, Content = new List<SectionContent>() };
+                continue;
+            }
+            
+            // Check if this is a note line
+            if (IsNoteLine(line))
+            {
+                var note = ParseNote(line);
+                currentSection.Content.Add(new NoteContent { Value = note });
+                continue;
+            }
+            
             // Skip empty lines between steps
             if (string.IsNullOrWhiteSpace(line))
             {
-                // Empty lines separate steps
                 continue;
             }
                 
@@ -83,15 +108,83 @@ internal class Parser
             if (IsCommentLine(line))
                 continue;
             
-            // Parse this line and any continuation lines
+            // Parse this line and any continuation lines as a step
             var step = ParseStepWithContinuations(lines, ref i);
             if (step.Items.Count > 0)
             {
-                steps.Add(step);
+                step = step with { Number = stepNumber++ };
+                currentSection.Content.Add(new StepContent { Step = step });
             }
         }
         
-        return steps;
+        // Add final section if it has content
+        if (currentSection.Content.Count > 0)
+        {
+            sections.Add(currentSection);
+        }
+        
+        // If no sections were created, create a default section with no name
+        if (sections.Count == 0)
+        {
+            sections.Add(new Section { Name = null, Content = new List<SectionContent>() });
+        }
+        
+        return sections;
+    }
+    
+    private static bool IsSectionLine(string line)
+    {
+        var trimmed = line.Trim();
+        return trimmed.StartsWith("=") && (trimmed.Length > 1 || trimmed.Contains("="));
+    }
+    
+    private static string? ParseSectionHeader(string line)
+    {
+        var trimmed = line.Trim();
+        
+        // Remove leading = characters
+        var start = 0;
+        while (start < trimmed.Length && trimmed[start] == '=')
+        {
+            start++;
+        }
+        
+        // Remove trailing = characters
+        var end = trimmed.Length - 1;
+        while (end >= 0 && trimmed[end] == '=')
+        {
+            end--;
+        }
+        
+        // Extract section name
+        if (start <= end)
+        {
+            var name = trimmed[start..(end + 1)].Trim();
+            return string.IsNullOrEmpty(name) ? null : name;
+        }
+        
+        return null;
+    }
+    
+    private static bool IsNoteLine(string line)
+    {
+        return line.TrimStart().StartsWith(">");
+    }
+    
+    private static string ParseNote(string line)
+    {
+        var trimmed = line.TrimStart();
+        if (trimmed.StartsWith(">"))
+        {
+            // Remove the > and any space immediately after it
+            var content = trimmed.Substring(1);
+            if (content.Length > 0 && content[0] == ' ')
+            {
+                content = content.Substring(1);
+            }
+            return content;
+        }
+        return line;
     }
 
     private Step ParseStepWithContinuations(string[] lines, ref int lineIndex)
@@ -300,12 +393,52 @@ internal class Parser
         
         var (name, quantity, units) = ParseComponent(line, ref position, isTimer: false);
         
+        // Check for modifier (preparation instructions) in parentheses
+        string? note = null;
+        if (position < line.Length && line[position] == '(')
+        {
+            note = ParseModifier(line, ref position);
+        }
+        
         return new IngredientItem
         {
             Name = name,
             Quantity = quantity ?? "some",
-            Units = units ?? ""
+            Units = units ?? "",
+            Note = note
         };
+    }
+    
+    private static string? ParseModifier(string line, ref int position)
+    {
+        if (position >= line.Length || line[position] != '(')
+            return null;
+            
+        position++; // Skip opening parenthesis
+        var start = position;
+        var depth = 1;
+        
+        while (position < line.Length && depth > 0)
+        {
+            if (line[position] == '(')
+                depth++;
+            else if (line[position] == ')')
+                depth--;
+                
+            if (depth > 0)
+                position++;
+        }
+        
+        if (depth == 0)
+        {
+            var modifier = line[start..position];
+            position++; // Skip closing parenthesis
+            return modifier;
+        }
+        
+        // Unclosed parenthesis, treat as text
+        position = start - 1; // Reset to opening parenthesis
+        return null;
     }
 
     private Item ParseCookware(string line, ref int position)

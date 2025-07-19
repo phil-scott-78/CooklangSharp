@@ -2,13 +2,37 @@ namespace CooklangSharp.Models;
 
 public record Recipe
 {
-    public List<Step> Steps { get; init; } = new();
-    public Dictionary<string, object> Metadata { get; init; } = new();
+    public List<Section> Sections { get; init; } = new();
+    public Dictionary<string, object> Metadata { get; init; } = new();    
+}
+
+public record Section
+{
+    public string? Name { get; init; }
+    public List<SectionContent> Content { get; init; } = new();
+}
+
+public abstract record SectionContent
+{
+    public abstract string Type { get; }
+}
+
+public record StepContent : SectionContent
+{
+    public override string Type => "step";
+    public required Step Step { get; init; }
+}
+
+public record NoteContent : SectionContent  
+{
+    public override string Type => "text";
+    public required string Value { get; init; }
 }
 
 public record Step
 {
     public List<Item> Items { get; init; } = new();
+    public int? Number { get; init; }
 }
 
 public abstract record Item
@@ -28,6 +52,7 @@ public record IngredientItem : Item
     public required string Name { get; init; }
     public required object Quantity { get; init; }
     public required string Units { get; init; }
+    public string? Note { get; init; }
 }
 
 public record CookwareItem : Item

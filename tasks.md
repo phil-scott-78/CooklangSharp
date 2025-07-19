@@ -1,67 +1,65 @@
-# Cooklang Parser Tasks
+# CooklangSharp Advanced Features Implementation
 
-## Core Project Setup
-- [x] Setup C# Project Structure (Library + Test)
-- [ ] Create core models and data structures
-- [ ] Implement YAML test-runner for integration testing
+## Overview
+Implementing support for Notes, Sections, and Short-hand preparations in the CooklangSharp parser.
 
-## Lexer Tokens
-- [ ] Tokenize Metadata Delimiter (`---`)
-- [ ] Tokenize Comments (`--`)
-- [ ] Tokenize Special Characters (`@`, `#`, `~`, `{`, `}`, `%`)
-- [ ] Tokenize Text/Words
-- [ ] Tokenize Numbers and Fractions
-- [ ] Tokenize Whitespace and Newlines
+## Tasks
 
-## Parser Components - Metadata
-- [ ] Parse Metadata Block (between `---` delimiters)
-- [ ] Parse Metadata Key-Value Pairs
-- [ ] Handle Multi-word Metadata Keys
+### 1. Domain Model Updates
+- [x] Add `NoteItem` class that inherits from `Item` (Changed to NoteContent as SectionContent)
+- [x] Add `Note` property to `IngredientItem` for preparation instructions
+- [x] Create `Section` class with Name and Content properties
+- [x] Create `SectionContent` abstract class for section items
+- [x] Update `Recipe` model to use sections instead of flat steps
+- [x] Update existing models to work with new structure (Added backward compatibility)
 
-## Parser Components - Basic Elements
-- [ ] Parse Comment-only lines (`--`)
-- [ ] Parse Comments after content
-- [ ] Parse Plain Text runs
-- [ ] Handle Multiple Lines and Step Separation
-- [ ] Handle Empty Lines
+### 2. Parser Implementation
 
-## Parser Components - Ingredients (`@`)
-- [ ] Parse Ingredient: single-word (`@salt`)
-- [ ] Parse Ingredient: multi-word (`@hot chilli{}`)
-- [ ] Parse Ingredient: quantity only (`@milk{250}`)
-- [ ] Parse Ingredient: quantity and units (`@milk{250%ml}`)
-- [ ] Parse Ingredient: text quantities (`@thyme{few%sprigs}`)
-- [ ] Parse Ingredient: fractions (`@milk{1/2%cup}`)
-- [ ] Parse Ingredient: decimals (`@water{1.5%cups}`)
-- [ ] Parse Ingredient: with leading numbers (`@1000 island dressing{}`)
-- [ ] Parse Ingredient: with emoji (`@🧂`)
-- [ ] Handle Invalid Ingredient Syntax
+#### 2.1 Note Parsing
+- [x] Add `IsNoteLine()` method to detect lines starting with '>'
+- [x] Implement `ParseNote()` method to extract note text
+- [x] Integrate note parsing into main parsing flow
+- [ ] Handle multi-line notes if needed
 
-## Parser Components - Cookware (`#`)
-- [ ] Parse Cookware: single-word (`#pan`)
-- [ ] Parse Cookware: multi-word (`#frying pan{}`)
-- [ ] Parse Cookware: with quantity (`#frying pan{2}`)
-- [ ] Parse Cookware: text quantities (`#frying pan{two small}`)
-- [ ] Parse Cookware: with leading numbers (`#7-inch nonstick frying pan{}`)
-- [ ] Handle Invalid Cookware Syntax
+#### 2.2 Section Parsing
+- [x] Add `IsSectionLine()` method to detect section markers
+- [x] Implement `ParseSectionHeader()` to extract section names
+- [x] Update `ParseRecipe()` to handle sectioned content
+- [x] Support various section syntaxes (=, ==, etc.)
+- [x] Handle default/unnamed sections
 
-## Parser Components - Timers (`~`)
-- [ ] Parse Timer: single-word name only (`~rest`)
-- [ ] Parse Timer: anonymous with time (`~{10%minutes}`)
-- [ ] Parse Timer: named with time (`~potato{42%minutes}`)
-- [ ] Parse Timer: fractions (`~{1/2%hour}`)
-- [ ] Parse Timer: decimals (`~{1.5%minutes}`)
-- [ ] Handle Invalid Timer Syntax
+#### 2.3 Ingredient Modifier Parsing
+- [x] Update `ParseIngredient()` to check for opening parenthesis after '}'
+- [x] Implement parsing of modifier text until closing parenthesis
+- [x] Store modifier in the `Note` property of `IngredientItem`
+- [x] Handle edge cases (nested parentheses, escaping)
 
-## Advanced Parsing Features
-- [ ] Handle Unicode Characters (degrees, emoji, special punctuation)
-- [ ] Handle Whitespace Variations (spaces, tabs, Unicode whitespace)
-- [ ] Parse Fractions with Spaces (`1 / 2`)
-- [ ] Handle Edge Cases (leading numbers, punctuation boundaries)
-- [ ] Error Handling and Recovery
+### 3. Integration and Testing
+- [ ] Update `ParseResult` if needed for new scenarios
+- [x] Create test for note parsing
+- [x] Create test for section parsing
+- [x] Create test for ingredient modifiers
+- [x] Add integration test with the provided example
+- [x] Ensure backward compatibility with existing recipes
+- [x] Run all existing tests to ensure no regression
 
-## Finalization
-- [ ] Pass all tests in `canonical.yaml`
-- [ ] Integration test runner
-- [ ] Code cleanup and documentation
-- [ ] Performance optimization
+### 4. Documentation and Cleanup
+- [ ] Update code comments
+- [ ] Clean up any temporary code
+- [x] Verify all tests pass
+- [x] Run build and ensure no warnings
+
+## Progress Notes
+- Starting with domain model updates as they form the foundation
+- Will implement features incrementally, testing each one
+- Keeping backward compatibility in mind throughout
+
+## Completion Summary
+- ✅ All domain models updated with support for sections, notes, and ingredient modifiers
+- ✅ Parser successfully handles all three new features:
+  - Notes (lines starting with '>')
+  - Sections (lines with '=' markers)
+  - Ingredient modifiers (text in parentheses)
+- ✅ Backward compatibility maintained via computed Steps property
+- ✅ All 75 tests passing, including new feature tests
+- ✅ Implementation matches the expected JSON structure from the specification

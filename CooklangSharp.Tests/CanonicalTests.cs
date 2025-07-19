@@ -23,9 +23,12 @@ public class CanonicalTests
         
         result.Success.ShouldBeTrue();
         result.Recipe.ShouldNotBeNull();
-        result.Recipe.Steps.Count.ShouldBe(1);
-        result.Recipe.Steps[0].Items.Count.ShouldBe(1);
-        result.Recipe.Steps[0].Items[0].Type.ShouldBe("text");
+        result.Recipe.Sections.First().Content.Count.ShouldBe(1);
+
+        var stepContent = result.Recipe.Sections.First().Content[0] as StepContent;
+        stepContent.ShouldNotBeNull();
+        stepContent.Step.Items.Count.ShouldBe(1);
+        stepContent.Step.Items[0].Type.ShouldBe("text");
     }
 
     [Fact]
@@ -35,7 +38,7 @@ public class CanonicalTests
         
         result.Success.ShouldBeTrue();
         result.Recipe.ShouldNotBeNull();
-        result.Recipe.Steps.Count.ShouldBe(0);
+        result.Recipe.Sections.First().Content.Count.ShouldBe(0);
     }
 
     [Fact]
@@ -51,7 +54,7 @@ public class CanonicalTests
         
         result.Success.ShouldBeTrue();
         result.Recipe.ShouldNotBeNull();
-        result.Recipe.Steps.Count.ShouldBe(0);
+        result.Recipe.Sections.First().Content.Count.ShouldBe(0);
         result.Recipe.Metadata.ShouldContainKey("sourced");
         result.Recipe.Metadata["sourced"].ShouldBe("babooshka");
     }
@@ -63,10 +66,12 @@ public class CanonicalTests
         
         result.Success.ShouldBeTrue();
         result.Recipe.ShouldNotBeNull();
-        result.Recipe.Steps.Count.ShouldBe(1);
-        result.Recipe.Steps[0].Items.Count.ShouldBe(1);
-        
-        var ingredient = result.Recipe.Steps[0].Items[0] as IngredientItem;
+        result.Recipe.Sections.First().Content.Count.ShouldBe(1);
+
+        var stepContent = result.Recipe.Sections.First().Content[0] as StepContent;
+        stepContent.ShouldNotBeNull();
+
+        var ingredient = stepContent.Step.Items[0] as IngredientItem;
         ingredient.ShouldNotBeNull();
         ingredient.Name.ShouldBe("chilli");
         ingredient.Quantity.ShouldBe(3.0);
@@ -80,10 +85,13 @@ public class CanonicalTests
         
         result.Success.ShouldBeTrue();
         result.Recipe.ShouldNotBeNull();
-        result.Recipe.Steps.Count.ShouldBe(1);
-        result.Recipe.Steps[0].Items.Count.ShouldBe(1);
-        
-        var ingredient = result.Recipe.Steps[0].Items[0] as IngredientItem;
+        result.Recipe.Sections.First().Content.Count.ShouldBe(1);
+
+        var stepContent = result.Recipe.Sections.First().Content[0] as StepContent;
+        stepContent.ShouldNotBeNull();
+        stepContent.Step.Items.Count.ShouldBe(1);
+
+        var ingredient = stepContent.Step.Items[0] as IngredientItem;
         ingredient.ShouldNotBeNull();
         ingredient.Name.ShouldBe("chilli");
         ingredient.Quantity.ShouldBe("some");
@@ -97,10 +105,13 @@ public class CanonicalTests
         
         result.Success.ShouldBeTrue();
         result.Recipe.ShouldNotBeNull();
-        result.Recipe.Steps.Count.ShouldBe(1);
-        result.Recipe.Steps[0].Items.Count.ShouldBe(1);
-        
-        var ingredient = result.Recipe.Steps[0].Items[0] as IngredientItem;
+        result.Recipe.Sections.First().Content.Count.ShouldBe(1);
+
+        var stepContent = result.Recipe.Sections.First().Content[0] as StepContent;
+        stepContent.ShouldNotBeNull();
+        stepContent.Step.Items.Count.ShouldBe(1);
+
+        var ingredient = stepContent.Step.Items[0] as IngredientItem;
         ingredient.ShouldNotBeNull();
         ingredient.Name.ShouldBe("milk");
         ingredient.Quantity.ShouldBe(0.5);
@@ -114,16 +125,19 @@ public class CanonicalTests
         
         result.Success.ShouldBeTrue();
         result.Recipe.ShouldNotBeNull();
-        result.Recipe.Steps.Count.ShouldBe(1);
-        result.Recipe.Steps[0].Items.Count.ShouldBe(7);
-        
-        result.Recipe.Steps[0].Items[0].Type.ShouldBe("text");
-        result.Recipe.Steps[0].Items[1].Type.ShouldBe("ingredient");
-        result.Recipe.Steps[0].Items[2].Type.ShouldBe("text");
-        result.Recipe.Steps[0].Items[3].Type.ShouldBe("ingredient");
-        result.Recipe.Steps[0].Items[4].Type.ShouldBe("text");
-        result.Recipe.Steps[0].Items[5].Type.ShouldBe("ingredient");
-        result.Recipe.Steps[0].Items[6].Type.ShouldBe("text");
+        result.Recipe.Sections.First().Content.Count.ShouldBe(1);
+
+        var stepContent = result.Recipe.Sections.First().Content[0] as StepContent;
+        stepContent.ShouldNotBeNull();
+        stepContent.Step.Items.Count.ShouldBe(7);
+
+        stepContent.Step.Items[0].Type.ShouldBe("text");
+        stepContent.Step.Items[1].Type.ShouldBe("ingredient");
+        stepContent.Step.Items[2].Type.ShouldBe("text");
+        stepContent.Step.Items[3].Type.ShouldBe("ingredient");
+        stepContent.Step.Items[4].Type.ShouldBe("text");
+        stepContent.Step.Items[5].Type.ShouldBe("ingredient");
+        stepContent.Step.Items[6].Type.ShouldBe("text");
     }
 
     public static TheoryData<string, CanonicalTest> CanonicalTestCases => GetCanonicalTestCases();
@@ -179,12 +193,25 @@ public class CanonicalTests
                 $"Test {testName}: Metadata value mismatch for key {kvp.Key}");
         }
 
+        // Get all steps from sections
+        var allSteps = new List<Step>();
+        foreach (var section in actual.Sections)
+        {
+            foreach (var content in section.Content)
+            {
+                if (content is StepContent stepContent)
+                {
+                    allSteps.Add(stepContent.Step);
+                }
+            }
+        }
+
         // Compare steps
-        actual.Steps.Count.ShouldBe(expected.Steps.Count, $"Test {testName}: Step count mismatch");
-        
+        allSteps.Count.ShouldBe(expected.Steps.Count, $"Test {testName}: Step count mismatch");
+
         for (int i = 0; i < expected.Steps.Count; i++)
         {
-            var actualStep = actual.Steps[i];
+            var actualStep = allSteps[i];
             var expectedStep = expected.Steps[i];
             
             actualStep.Items.Count.ShouldBe(expectedStep.Count, 
