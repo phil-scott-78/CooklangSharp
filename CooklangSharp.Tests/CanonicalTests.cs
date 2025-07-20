@@ -141,8 +141,10 @@ public class CanonicalTests
     }
 
     public static TheoryData<string, CanonicalTest> CanonicalTestCases => GetCanonicalTestCases();
+    
+    public static TheoryData<string, CanonicalTest> ValidCanonicalTestCases => GetCanonicalTestCases(excludeInvalidTests: true);
 
-    private static TheoryData<string, CanonicalTest> GetCanonicalTestCases()
+    private static TheoryData<string, CanonicalTest> GetCanonicalTestCases(bool excludeInvalidTests = false)
     {
         var data = new TheoryData<string, CanonicalTest>();
         var canonicalPath = PathUtils.GetPath("../cooklang-spec/tests/canonical.yaml");
@@ -159,6 +161,12 @@ public class CanonicalTests
         var canonicalData = deserializer.Deserialize<CanonicalTestData>(yaml);
         foreach (var test in canonicalData.Tests)
         {
+            // Skip invalid tests in strict mode - these are tests that contain
+            // intentionally invalid syntax that should be treated as text in normal mode
+            // but should fail in strict mode
+            if (excludeInvalidTests && test.Key.StartsWith("testInvalid"))
+                continue;
+                
             data.Add(test.Key, test.Value);
         }
         return data;
@@ -166,14 +174,21 @@ public class CanonicalTests
 
     [Theory]
     [MemberData(nameof(CanonicalTestCases))]
-    public void CanonicalTheoryTest(string testName, CanonicalTest test)
+    public void CanonicalTheoryTestNonStrict(string testName, CanonicalTest test)
     {
-        RunSingleCanonicalTest(testName, test);
+        RunSingleCanonicalTest(testName, test, false);
     }
 
-    private void RunSingleCanonicalTest(string testName, CanonicalTest test)
+    [Theory]
+    [MemberData(nameof(ValidCanonicalTestCases))]
+    public void CanonicalTheoryTestStrict(string testName, CanonicalTest test)
     {
-        var result = CooklangParser.Parse(test.Source);
+        RunSingleCanonicalTest(testName, test, true);
+    }
+    
+    private void RunSingleCanonicalTest(string testName, CanonicalTest test, bool isStrict)
+    {
+        var result = CooklangParser.Parse(test.Source, isStrict);
         
         result.Success.ShouldBeTrue($"Test {testName} failed to parse");
         result.Recipe.ShouldNotBeNull($"Test {testName} returned null recipe");

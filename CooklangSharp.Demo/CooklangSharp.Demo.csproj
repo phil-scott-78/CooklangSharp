@@ -5,6 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Errata" Version="0.14.0" />
     <PackageReference Include="Spectre.Console" Version="0.50.1-preview.0.21" />
   </ItemGroup>
 
