@@ -1,3 +1,4 @@
+using CooklangSharp;
 using CooklangSharp.Core;
 using CooklangSharp.Models;
 using Errata;
@@ -5,7 +6,7 @@ using Spectre.Console;
 
 var source = """
              Mix @flour{200%g} and @water{100%ml}.
-             Add @sugar{41/0%cups} to taste.
+             Add @sugar{41/0%cups} and @bananas{2 to taste.
              """;
 
 
@@ -66,26 +67,29 @@ if (result is { Success: true, Recipe: not null })
 }
 else
 {
-    if (result.Error != null)
+    if (result.Errors.Count > 0)
     {
-        var error = result.Error;
         var inMemorySourceRepository = new InMemorySourceRepository();
         var sourceId = "recipe.cook";
         inMemorySourceRepository.Register(sourceId, source);
         var report = new Report(inMemorySourceRepository);
-        
-        report.AddDiagnostic(
-            Diagnostic.Error(error.Type.ToString())
-                .WithLabel(new Label(sourceId, new Location(error.Line, error.Column), error.Message)
-                    .WithLength(error.Length)
-                    .WithPriority(1)
-                    .WithColor(Color.Red)));
-        
+
+        var diagnostic = Diagnostic.Error("Parser error");
+        // Add all errors to the report
+        for (int i = 0; i < result.Errors.Count; i++)
+        {
+            var error = result.Errors[i];
+            diagnostic = diagnostic.WithLabel(new Label(sourceId, new Location(error.Line, error.Column), error.Message)
+                        .WithLength(error.Length)
+                        .WithPriority(i + 1)
+                        .WithColor(Color.Red));
+        }
+        report.AddDiagnostic(diagnostic);
         report.Render(AnsiConsole.Console);
     }
     else
     {
-        AnsiConsole.MarkupLine($"[red]Parse failed: {result.Error}[/]");    
+        AnsiConsole.MarkupLine($"[red]Parse failed with unknown error[/]");    
     }
     
 }

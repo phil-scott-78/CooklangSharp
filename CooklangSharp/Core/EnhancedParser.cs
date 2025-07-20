@@ -6,12 +6,14 @@ namespace CooklangSharp.Core;
 internal class EnhancedParser
 {
     private PositionTracker? _positionTracker;
+    private List<ParseError> _errors = new();
 
     public ParseResult ParseRecipe(string source)
     {
         try
         {
             _positionTracker = new PositionTracker(source);
+            _errors = new List<ParseError>();
             
             if (string.IsNullOrEmpty(source))
             {
@@ -26,32 +28,38 @@ internal class EnhancedParser
             if (lines.Length > 0 && lines[0].Trim() == "---")
             {
                 var metadataResult = ParseMetadataBlock(lines, ref lineIndex);
-                if (!metadataResult.Success)
-                    return metadataResult.Error!;
-                
                 recipe = recipe with { Metadata = metadataResult.Metadata };
             }
 
             // Parse recipe content with sections
             var sectionsResult = ParseSections(lines, lineIndex);
-            if (!sectionsResult.Success)
-                return sectionsResult.Error!;
-                
             recipe = recipe with { Sections = sectionsResult.Sections };
+
+            if (_errors.Count > 0)
+            {
+                return ParseResult.CreateErrorWithMultiple(_errors);
+            }
 
             return ParseResult.CreateSuccess(recipe);
         }
         catch (Exception ex)
         {
-            return ParseResult.CreateError(
-                $"Unexpected error: {ex.Message}",
-                _positionTracker?.Line ?? 1,
-                _positionTracker?.Column ?? 1,
-                1,
-                _positionTracker?.GetContext(),
-                ParseErrorType.Other
-            );
+            _errors.Add(new ParseError
+            {
+                Message = $"Unexpected error: {ex.Message}",
+                Line = _positionTracker?.Line ?? 1,
+                Column = _positionTracker?.Column ?? 1,
+                Length = 1,
+                Context = _positionTracker?.GetContext(),
+                Type = ParseErrorType.Other
+            });
+            return ParseResult.CreateErrorWithMultiple(_errors);
         }
+    }
+
+    private void AddError(ParseError error)
+    {
+        _errors.Add(error);
     }
 
     private MetadataResult ParseMetadataBlock(string[] lines, ref int lineIndex)
@@ -83,28 +91,32 @@ internal class EnhancedParser
                 
                 if (string.IsNullOrWhiteSpace(key))
                 {
-                    return MetadataResult.CreateError(ParseResult.CreateError(
-                        "Metadata key cannot be empty",
-                        lineIndex + 1,
-                        1,
-                        colonIndex,
-                        line,
-                        ParseErrorType.InvalidMetadata
-                    ));
+                    AddError(new ParseError
+                    {
+                        Message = "Metadata key cannot be empty",
+                        Line = lineIndex + 1,
+                        Column = 1,
+                        Length = colonIndex,
+                        Context = line,
+                        Type = ParseErrorType.InvalidMetadata
+                    });
                 }
-                
-                metadata[key] = value;
+                else
+                {
+                    metadata[key] = value;
+                }
             }
             else if (!string.IsNullOrWhiteSpace(line))
             {
-                return MetadataResult.CreateError(ParseResult.CreateError(
-                    "Invalid metadata format. Expected 'key: value'",
-                    lineIndex + 1,
-                    1,
-                    line.Length,
-                    line,
-                    ParseErrorType.InvalidMetadata
-                ));
+                AddError(new ParseError
+                {
+                    Message = "Invalid metadata format. Expected 'key: value'",
+                    Line = lineIndex + 1,
+                    Column = 1,
+                    Length = line.Length,
+                    Context = line,
+                    Type = ParseErrorType.InvalidMetadata
+                });
             }
             
             lineIndex++;
@@ -128,8 +140,6 @@ internal class EnhancedParser
             if (IsSectionLine(line))
             {
                 var sectionResult = ValidateAndParseSectionHeader(line, i + 1);
-                if (!sectionResult.Success)
-                    return SectionsResult.CreateError(sectionResult.Error!);
                 
                 // Save current section if it has content
                 if (currentSection.Content.Count > 0)
@@ -156,8 +166,6 @@ internal class EnhancedParser
             
             // Parse this line and any continuation lines as a step
             var stepResult = ParseStepWithContinuations(lines, ref i);
-            if (!stepResult.Success)
-                return SectionsResult.CreateError(stepResult.Error!);
                 
             if (stepResult.Step!.Items.Count > 0)
             {
@@ -187,14 +195,16 @@ internal class EnhancedParser
         
         if (!trimmed.StartsWith("="))
         {
-            return SectionHeaderResult.CreateError(ParseResult.CreateError(
-                "Section header must start with '='",
-                lineNumber,
-                1,
-                1,
-                line,
-                ParseErrorType.InvalidSectionHeader
-            ));
+            AddError(new ParseError
+            {
+                Message = "Section header must start with '='",
+                Line = lineNumber,
+                Column = 1,
+                Length = 1,
+                Context = line,
+                Type = ParseErrorType.InvalidSectionHeader
+            });
+            return SectionHeaderResult.CreateSuccess(null);
         }
         
         // Count leading equals
@@ -235,9 +245,6 @@ internal class EnhancedParser
         
         // Parse the first line
         var stepResult = ParseStep(currentLine, lineIndex + 1);
-        if (!stepResult.Success)
-            return stepResult;
-            
         allItems.AddRange(stepResult.Step!.Items);
         
         // Check if the next lines are continuations
@@ -252,8 +259,6 @@ internal class EnhancedParser
             
             lineIndex++; // Move to the next line
             var continuationResult = ParseStep(nextLine, lineIndex + 1);
-            if (!continuationResult.Success)
-                return continuationResult;
             
             // Add continuation with appropriate spacing
             if (continuationResult.Step!.Items.Count > 0)
@@ -305,9 +310,6 @@ internal class EnhancedParser
         while (position < line.Length)
         {
             var itemResult = ParseNextItem(line, ref position, lineNumber);
-            if (!itemResult.Success)
-                return StepResult.CreateError(itemResult.Error!);
-                
             if (itemResult.Item != null)
             {
                 items.Add(itemResult.Item);
@@ -335,26 +337,26 @@ internal class EnhancedParser
 
     private ItemResult ParseIngredient(string line, ref int position, int lineNumber)
     {
-        var originalPosition = position;
         position++; // Skip @
         
         // Check for space immediately after @
         if (position < line.Length && char.IsWhiteSpace(line[position]))
         {
-            return ItemResult.CreateError(ParseResult.CreateError(
-                "Invalid ingredient syntax: space not allowed after '@'",
-                lineNumber,
-                position + 1,
-                1,
-                line,
-                ParseErrorType.InvalidIngredientSyntax
-            ));
+            AddError(new ParseError
+            {
+                Message = "Invalid ingredient syntax: space not allowed after '@'",
+                Line = lineNumber,
+                Column = position + 1,
+                Length = 1,
+                Context = line,
+                Type = ParseErrorType.InvalidIngredientSyntax
+            });
+            // Continue parsing anyway to find more errors
+            while (position < line.Length && char.IsWhiteSpace(line[position]))
+                position++;
         }
         
         var componentResult = ParseComponent(line, ref position, lineNumber, isTimer: false);
-        if (!componentResult.Success)
-            return ItemResult.CreateError(componentResult.Error!);
-        
         var (name, quantity, units) = componentResult.Component;
         
         // Check for modifier (preparation instructions) in parentheses
@@ -362,8 +364,6 @@ internal class EnhancedParser
         if (position < line.Length && line[position] == '(')
         {
             var modifierResult = ParseModifier(line, ref position, lineNumber);
-            if (!modifierResult.Success)
-                return ItemResult.CreateError(modifierResult.Error!);
             note = modifierResult.Modifier;
         }
         
@@ -383,20 +383,21 @@ internal class EnhancedParser
         // Check for space immediately after #
         if (position < line.Length && char.IsWhiteSpace(line[position]))
         {
-            return ItemResult.CreateError(ParseResult.CreateError(
-                "Invalid cookware syntax: space not allowed after '#'",
-                lineNumber,
-                position + 1,
-                1,
-                line,
-                ParseErrorType.InvalidCookwareSyntax
-            ));
+            AddError(new ParseError
+            {
+                Message = "Invalid cookware syntax: space not allowed after '#'",
+                Line = lineNumber,
+                Column = position + 1,
+                Length = 1,
+                Context = line,
+                Type = ParseErrorType.InvalidCookwareSyntax
+            });
+            // Continue parsing anyway
+            while (position < line.Length && char.IsWhiteSpace(line[position]))
+                position++;
         }
         
         var componentResult = ParseComponent(line, ref position, lineNumber, isTimer: false);
-        if (!componentResult.Success)
-            return ItemResult.CreateError(componentResult.Error!);
-        
         var (name, quantity, units) = componentResult.Component;
         
         return ItemResult.CreateSuccess(new CookwareItem
@@ -412,22 +413,20 @@ internal class EnhancedParser
         position++; // Skip ~
         
         var componentResult = ParseComponent(line, ref position, lineNumber, isTimer: true);
-        if (!componentResult.Success)
-            return ItemResult.CreateError(componentResult.Error!);
-        
         var (name, quantity, units) = componentResult.Component;
         
         // Validate timer: must have either a name or a quantity
         if (string.IsNullOrWhiteSpace(name) && (quantity == null || quantity.ToString() == ""))
         {
-            return ItemResult.CreateError(ParseResult.CreateError(
-                "Invalid timer syntax: timer must have either a name or duration",
-                lineNumber,
-                position,
-                1,
-                line,
-                ParseErrorType.InvalidTimerSyntax
-            ));
+            AddError(new ParseError
+            {
+                Message = "Invalid timer syntax: timer must have either a name or duration",
+                Line = lineNumber,
+                Column = position,
+                Length = 1,
+                Context = line,
+                Type = ParseErrorType.InvalidTimerSyntax
+            });
         }
         
         return ItemResult.CreateSuccess(new TimerItem
@@ -462,14 +461,15 @@ internal class EnhancedParser
             // For timers, check if there's leading whitespace before the brace (invalid syntax)
             if (isTimer && nameStr.TrimEnd() != nameStr)
             {
-                return ComponentResult.CreateError(ParseResult.CreateError(
-                    "Invalid timer syntax: space not allowed before '{'",
-                    lineNumber,
-                    position + nameStr.TrimEnd().Length + 1,
-                    1,
-                    line,
-                    ParseErrorType.InvalidTimerSyntax
-                ));
+                AddError(new ParseError
+                {
+                    Message = "Invalid timer syntax: space not allowed before '{'",
+                    Line = lineNumber,
+                    Column = position + nameStr.TrimEnd().Length + 1,
+                    Length = 1,
+                    Context = line,
+                    Type = ParseErrorType.InvalidTimerSyntax
+                });
             }
             
             name = nameStr.Trim();
@@ -487,14 +487,18 @@ internal class EnhancedParser
             var closeBrace = line.IndexOf('}', position);
             if (closeBrace == -1)
             {
-                return ComponentResult.CreateError(ParseResult.CreateError(
-                    "Unterminated brace: missing '}'",
-                    lineNumber,
-                    position + 1,
-                    line.Length - position,
-                    line,
-                    ParseErrorType.UnterminatedBrace
-                ));
+                AddError(new ParseError
+                {
+                    Message = "Unterminated brace: missing '}'",
+                    Line = lineNumber,
+                    Column = position + 1,
+                    Length = line.Length - position,
+                    Context = line,
+                    Type = ParseErrorType.UnterminatedBrace
+                });
+                // Continue parsing until end of line
+                position = line.Length;
+                return ComponentResult.CreateSuccess((name, quantity, units));
             }
             
             var content = line[(position + 1)..closeBrace].Trim();
@@ -503,9 +507,6 @@ internal class EnhancedParser
             if (!string.IsNullOrEmpty(content))
             {
                 var quantityResult = ParseQuantityAndUnits(content, lineNumber, line, openBracePosition);
-                if (!quantityResult.Success)
-                    return ComponentResult.CreateError(quantityResult.Error!);
-                
                 quantity = quantityResult.Quantity;
                 units = quantityResult.Units;
             }
@@ -536,19 +537,24 @@ internal class EnhancedParser
         
         if (depth > 0)
         {
-            return ModifierResult.CreateError(ParseResult.CreateError(
-                "Unterminated parenthesis: missing ')'",
-                lineNumber,
-                start,
-                line.Length - start + 1,
-                line,
-                ParseErrorType.UnterminatedParenthesis
-            ));
+            AddError(new ParseError
+            {
+                Message = "Unterminated parenthesis: missing ')'",
+                Line = lineNumber,
+                Column = start,
+                Length = line.Length - start + 1,
+                Context = line,
+                Type = ParseErrorType.UnterminatedParenthesis
+            });
+            // Continue to end of line
+            var modifier = line[start..];
+            position = line.Length;
+            return ModifierResult.CreateSuccess(modifier);
         }
         
-        var modifier = line[start..position];
+        var modifierText = line[start..position];
         position++; // Skip closing parenthesis
-        return ModifierResult.CreateSuccess(modifier);
+        return ModifierResult.CreateSuccess(modifierText);
     }
 
     private QuantityResult ParseQuantityAndUnits(string content, int lineNumber, string line, int bracePosition)
@@ -564,8 +570,6 @@ internal class EnhancedParser
         {
             // No units, just quantity
             var quantityResult = ParseQuantity(content.Trim(), lineNumber, line, bracePosition);
-            if (!quantityResult.Success)
-                return QuantityResult.CreateError(quantityResult.Error!);
             return QuantityResult.CreateSuccess(quantityResult.Quantity!, "");
         }
         
@@ -573,8 +577,6 @@ internal class EnhancedParser
         var unitsPart = content[(percentIndex + 1)..].Trim();
         
         var parsedQuantityResult = ParseQuantity(quantityPart, lineNumber, line, bracePosition);
-        if (!parsedQuantityResult.Success)
-            return QuantityResult.CreateError(parsedQuantityResult.Error!);
         
         return QuantityResult.CreateSuccess(parsedQuantityResult.Quantity!, unitsPart);
     }
@@ -594,14 +596,16 @@ internal class EnhancedParser
             var parts = quantityStr.Split('/');
             if (parts.Length != 2)
             {
-                return ParseQuantityResult.CreateError(ParseResult.CreateError(
-                    $"Invalid fraction format: '{quantityStr}'",
-                    lineNumber,
-                    bracePosition + 2, // +1 for '{' and +1 for 1-based indexing
-                    quantityStr.Length,
-                    line,
-                    ParseErrorType.InvalidQuantity
-                ));
+                AddError(new ParseError
+                {
+                    Message = $"Invalid fraction format: '{quantityStr}'",
+                    Line = lineNumber,
+                    Column = bracePosition + 2, // +1 for '{' and +1 for 1-based indexing
+                    Length = quantityStr.Length,
+                    Context = line,
+                    Type = ParseErrorType.InvalidQuantity
+                });
+                return ParseQuantityResult.CreateSuccess(quantityStr);
             }
             
             var numeratorStr = parts[0].Trim();
@@ -612,67 +616,64 @@ internal class EnhancedParser
             {
                 return ParseQuantityResult.CreateSuccess(quantityStr); // Return as text if the numerator has leading zeros
             }
-                
-            if (double.TryParse(numeratorStr, out var numerator) && 
-                double.TryParse(denominatorStr, out var denominator))
+
+            if (!double.TryParse(numeratorStr, out var numerator) || !double.TryParse(denominatorStr, out var denominator))
             {
-                if (denominator == 0)
-                {
-                    // Calculate the position of the '0' in the line
-                    // bracePosition is 0-based position of '{', we need position of '0' after "1/"
-                    var zeroPosition = bracePosition + 1; // +1 for '{', +1 for 1-based, +length of numerator, +1 for '/'
-                    
-                    return ParseQuantityResult.CreateError(ParseResult.CreateError(
-                        "Division by zero in fraction",
-                        lineNumber,
-                        zeroPosition + 1,
-                        numeratorStr.Length + 1 + denominatorStr.Length,
-                        line,
-                        ParseErrorType.InvalidQuantity
-                    ));
-                }
-                return ParseQuantityResult.CreateSuccess(numerator / denominator);
+                // If fraction parsing fails, return as text
+                return ParseQuantityResult.CreateSuccess(quantityStr);
             }
             
-            // If fraction parsing fails, return as text
+            if (denominator != 0) return ParseQuantityResult.CreateSuccess(numerator / denominator);
+            // Calculate the position of the '0' in the line
+            // bracePosition is 0-based position of '{', 
+            // +1 for '{', +length of numerator, +1 for '/', +1 for 1-based indexing
+            var zeroPosition = bracePosition + 2;
+                    
+            AddError(new ParseError
+            {
+                Message = "Division by zero in fraction",
+                Line = lineNumber,
+                Column = zeroPosition,
+                Length = numeratorStr.Length + 1 + denominatorStr.Length,
+                Context = line,
+                Type = ParseErrorType.InvalidQuantity
+            });
+            
             return ParseQuantityResult.CreateSuccess(quantityStr);
+
         }
-        
-        // Try to parse as a number
-        if (double.TryParse(quantityStr, out var number))
-        {
-            return ParseQuantityResult.CreateSuccess(number);
-        }
-        
-        // Return as text quantity
-        return ParseQuantityResult.CreateSuccess(quantityStr);
+
+        return double.TryParse(quantityStr, out var number) 
+            ? ParseQuantityResult.CreateSuccess(number) 
+            : ParseQuantityResult.CreateSuccess(quantityStr);
     }
 
-    // Helper methods (unchanged from original parser)
+    // Helper methods
     private static bool IsSectionLine(string line)
     {
         var trimmed = line.Trim();
-        return trimmed.StartsWith("=") && (trimmed.Length > 1 || trimmed.Contains("="));
+        return trimmed.StartsWith('=') && (trimmed.Length > 1 || trimmed.Contains('='));
     }
     
     private static bool IsNoteLine(string line)
     {
-        return line.TrimStart().StartsWith(">");
+        return line.TrimStart().StartsWith('>');
     }
     
     private static string ParseNote(string line)
     {
         var trimmed = line.TrimStart();
-        if (trimmed.StartsWith(">"))
+        if (!trimmed.StartsWith('>'))
         {
-            var content = trimmed.Substring(1);
-            if (content.Length > 0 && content[0] == ' ')
-            {
-                content = content.Substring(1);
-            }
-            return content;
+            return line;
         }
-        return line;
+        
+        var content = trimmed[1..];
+        if (content.Length > 0 && content[0] == ' ')
+        {
+            content = content[1..];
+        }
+        return content;
     }
     
     private static bool IsCommentLine(string line)
@@ -807,56 +808,47 @@ internal class EnhancedParser
 }
 
 // Result classes for internal parser operations
-internal record MetadataResult(bool Success, Dictionary<string, object> Metadata, ParseResult? Error = null)
+internal record MetadataResult(bool Success, Dictionary<string, object> Metadata)
 {
     public static MetadataResult CreateSuccess(Dictionary<string, object> metadata) => new(true, metadata);
-    public static MetadataResult CreateError(ParseResult error) => new(false, new Dictionary<string, object>(), error);
 }
 
-internal record SectionsResult(bool Success, List<Section> Sections, ParseResult? Error = null)
+internal record SectionsResult(bool Success, List<Section> Sections)
 {
     public static SectionsResult CreateSuccess(List<Section> sections) => new(true, sections);
-    public static SectionsResult CreateError(ParseResult error) => new(false, new List<Section>(), error);
 }
 
-internal record SectionHeaderResult(bool Success, string? SectionName, ParseResult? Error = null)
+internal record SectionHeaderResult(bool Success, string? SectionName)
 {
     public static SectionHeaderResult CreateSuccess(string? sectionName) => new(true, sectionName);
-    public static SectionHeaderResult CreateError(ParseResult error) => new(false, null, error);
 }
 
-internal record StepResult(bool Success, Step? Step, ParseResult? Error = null)
+internal record StepResult(bool Success, Step? Step)
 {
     public static StepResult CreateSuccess(Step step) => new(true, step);
-    public static StepResult CreateError(ParseResult error) => new(false, null, error);
 }
 
-internal record ItemResult(bool Success, Item? Item, ParseResult? Error = null)
+internal record ItemResult(bool Success, Item? Item)
 {
     public static ItemResult CreateSuccess(Item? item) => new(true, item);
-    public static ItemResult CreateError(ParseResult error) => new(false, null, error);
 }
 
-internal record ComponentResult(bool Success, (string name, object? quantity, string? units) Component, ParseResult? Error = null)
+internal record ComponentResult(bool Success, (string name, object? quantity, string? units) Component)
 {
     public static ComponentResult CreateSuccess((string, object?, string?) component) => new(true, component);
-    public static ComponentResult CreateError(ParseResult error) => new(false, ("", null, null), error);
 }
 
-internal record ModifierResult(bool Success, string? Modifier, ParseResult? Error = null)
+internal record ModifierResult(bool Success, string? Modifier)
 {
     public static ModifierResult CreateSuccess(string? modifier) => new(true, modifier);
-    public static ModifierResult CreateError(ParseResult error) => new(false, null, error);
 }
 
-internal record QuantityResult(bool Success, object? Quantity, string? Units, ParseResult? Error = null)
+internal record QuantityResult(bool Success, object? Quantity, string? Units)
 {
     public static QuantityResult CreateSuccess(object quantity, string units) => new(true, quantity, units);
-    public static QuantityResult CreateError(ParseResult error) => new(false, null, null, error);
 }
 
-internal record ParseQuantityResult(bool Success, object? Quantity, ParseResult? Error = null)
+internal record ParseQuantityResult(bool Success, object? Quantity)
 {
     public static ParseQuantityResult CreateSuccess(object quantity) => new(true, quantity);
-    public static ParseQuantityResult CreateError(ParseResult error) => new(false, null, error);
 }

@@ -29,10 +29,12 @@ public record ParseResult
     public bool Success { get; init; }
     public Recipe? Recipe { get; init; }
     public ParseError? Error { get; init; }
+    public List<ParseError> Errors { get; init; } = new();
     
     // Legacy properties for backward compatibility
-    public string? ErrorMessage => Error?.Message;
-    public int? ErrorPosition => Error != null ? (Error.Line - 1) * 100 + Error.Column : null;
+    public string? ErrorMessage => Error?.Message ?? Errors.FirstOrDefault()?.Message;
+    public int? ErrorPosition => Error != null ? (Error.Line - 1) * 100 + Error.Column : 
+                                 Errors.Count > 0 ? (Errors[0].Line - 1) * 100 + Errors[0].Column : null;
 
     public static ParseResult CreateSuccess(Recipe recipe) => new()
     {
@@ -58,5 +60,12 @@ public record ParseResult
     {
         Success = false,
         Error = error
+    };
+    
+    public static ParseResult CreateErrorWithMultiple(List<ParseError> errors) => new()
+    {
+        Success = false,
+        Errors = errors,
+        Error = errors.Count > 0 ? errors[0] : null
     };
 }

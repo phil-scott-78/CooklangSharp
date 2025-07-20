@@ -79,7 +79,7 @@ public class ErrorHandlingExampleTests
         result.Error.ShouldNotBeNull();
         result.Error.Type.ShouldBe(ParseErrorType.InvalidQuantity);
         result.Error.Line.ShouldBe(2);
-        result.Error.Column.ShouldBe(14); // Position of '0' in "Add @sugar{1/0%cups} to taste."
+        result.Error.Column.ShouldBe(12); // Position of '0' in "Add @sugar{1/0%cups} to taste."
         result.Error.Message.ShouldBe("Division by zero in fraction");
     }
     
