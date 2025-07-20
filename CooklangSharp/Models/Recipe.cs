@@ -3,7 +3,9 @@ namespace CooklangSharp.Models;
 public record Recipe
 {
     public List<Section> Sections { get; init; } = new();
-    public Dictionary<string, object> Metadata { get; init; } = new();    
+    public Dictionary<string, object> Metadata { get; init; } = new();
+
+    public string FrontMatter { get; init; } = string.Empty;
 }
 
 public record Section
@@ -61,6 +63,7 @@ public record CookwareItem : Item
     public required string Name { get; init; }
     public required object Quantity { get; init; }
     public string Units { get; init; } = "";
+    public string? Note { get; init; }
 }
 
 public record TimerItem : Item

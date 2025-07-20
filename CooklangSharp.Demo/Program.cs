@@ -1,22 +1,25 @@
 using CooklangSharp;
-using CooklangSharp.Core;
 using CooklangSharp.Models;
 using Errata;
 using Spectre.Console;
+using Diagnostic = Errata.Diagnostic;
 
 var source = """
-             Mix @flour{200%g} and @water{100%ml}.
-             Add @sugar{41/0%cups} and @bananas{2 to taste.
+             ---
+             yield: 1 kg
+             ---
+             
+             Add @ingredient{quantity}(modifier with (nested but @another{broken
              """;
 
 
-var result = CooklangParser.Parse(source, true);
-if (result is { Success: true, Recipe: not null })
+var result = CooklangParser.Parse(source);
+if (result.Recipe != null)
 {
     // Print metadata
     foreach (var meta in result.Recipe.Metadata)
     {
-        AnsiConsole.MarkupLine($"[bold]{meta.Key}[/]: {meta.Value}");
+        AnsiConsole.MarkupLineInterpolated($"[bold]{meta.Key}[/]: {meta.Value}");
     }
 
     var markup = new System.Text.StringBuilder();
@@ -25,7 +28,7 @@ if (result is { Success: true, Recipe: not null })
         markup.AppendLine();
         markup.AppendLine(recipeSection.Name);
         markup.AppendLine("===================");
-        
+
         for (var i = 0; i < recipeSection.Content.Count; i++)
         {
             markup.Append($"[bold]{i + 1}.[/] ");
@@ -43,6 +46,11 @@ if (result is { Success: true, Recipe: not null })
                             var units = string.IsNullOrWhiteSpace(ing.Units) ? "" : $" {ing.Units}";
                             var detail = (quant != "" || units != "") ? $"({quant}{units})" : "";
                             markup.Append($"[blue]{ing.Name}[/]{detail}");
+                            if (!string.IsNullOrWhiteSpace(ing.Note))
+                            {
+                                markup.AppendLine($" ([grey]{ing.Note.EscapeMarkup()}[/])");
+                            } 
+                            
                             break;
                         case CookwareItem c:
                             var cquant = c.Quantity.ToString() == "0" ? "" : $"{c.Quantity}";
@@ -65,31 +73,28 @@ if (result is { Success: true, Recipe: not null })
 
     AnsiConsole.MarkupLine(markup.ToString());
 }
-else
-{
-    if (result.Errors.Count > 0)
-    {
-        var inMemorySourceRepository = new InMemorySourceRepository();
-        var sourceId = "recipe.cook";
-        inMemorySourceRepository.Register(sourceId, source);
-        var report = new Report(inMemorySourceRepository);
 
-        var diagnostic = Diagnostic.Error("Parser error");
-        // Add all errors to the report
-        for (int i = 0; i < result.Errors.Count; i++)
-        {
-            var error = result.Errors[i];
-            diagnostic = diagnostic.WithLabel(new Label(sourceId, new Location(error.Line, error.Column), error.Message)
-                        .WithLength(error.Length)
-                        .WithPriority(i + 1)
-                        .WithColor(Color.Red));
-        }
-        report.AddDiagnostic(diagnostic);
-        report.Render(AnsiConsole.Console);
-    }
-    else
-    {
-        AnsiConsole.MarkupLine($"[red]Parse failed with unknown error[/]");    
-    }
+if (result.Diagnostics.Count > 0)
+{
+    var inMemorySourceRepository = new InMemorySourceRepository();
+    const string sourceId = "recipe.cook";
+    inMemorySourceRepository.Register(sourceId, source);
+    var report = new Report(inMemorySourceRepository);
+
+    var diagnostic = result.Diagnostics.Any(i => i.DiagnosticType == DiagnosticType.Error) 
+        ? Diagnostic.Error("Parser error") 
+        : Diagnostic.Warning("Parser warning");
     
+    foreach (var d in result.Diagnostics)
+    {
+        var color = Color.Yellow;
+        if (d.DiagnosticType == DiagnosticType.Error) color = Color.Red;
+
+        diagnostic = diagnostic.WithLabel(new Label(sourceId, new Location(d.Line, d.Column), d.Message)
+            .WithLength(d.Length)
+            .WithColor(color));
+    }
+
+    report.AddDiagnostic(diagnostic);
+    report.Render(AnsiConsole.Console);
 }
