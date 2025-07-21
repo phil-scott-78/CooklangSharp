@@ -5,7 +5,7 @@ on:
     paths-ignore:
     - 'changelog.md'
     - 'license.md'
-    - 'readme.md'
+    - 'README.md'
     branches: [main, master]
   pull_request:
     branches: [main, master]

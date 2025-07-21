@@ -15,6 +15,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".Solution Items", ".Solutio
 		dotnet-releaser.toml = dotnet-releaser.toml
 		global.json = global.json
 		LICENSE = LICENSE
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{FDA1DB32-4716-4392-BEE4-52A1F5B8E64E}"

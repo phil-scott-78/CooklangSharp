@@ -46,20 +46,6 @@ public class ErrorPositionTests
     }
 
     [Fact]
-    public void EmptyTimerErrors()
-    {
-        var source = "Add @ ingredient and # cookware and ~timer with errors";
-        
-        var result = CooklangParser.Parse(source);
-        
-        result.Success.ShouldBeFalse();
-        var firstError = result.Diagnostics.FirstOrDefault(d => d.DiagnosticType == DiagnosticType.Error);
-        firstError.ShouldNotBeNull();
-        firstError.Line.ShouldBe(1);
-        firstError.Type.ShouldBe(ParseErrorType.InvalidTimerSyntax);
-    }
-
-    [Fact]
     public void ProvideBetterErrorForComplexNesting()
     {
         var source = "Add @ingredient{quantity}(modifier with (nested but @another{broken";

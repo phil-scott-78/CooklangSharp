@@ -4,14 +4,38 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <PackageId>CooklangSharp</PackageId>
+    <Authors>Phil Scott</Authors>
+    <Description>A .NET parser for the Cooklang recipe markup language. Parse and analyze recipes with full support for ingredients, cookware, timers, and metadata.</Description>
+    <PackageTags>cooklang;recipe;parser;cooking;markup;food;ingredients;cookware</PackageTags>
+    <PackageProjectUrl>https://github.com/phil-scott-78/CooklangSharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/phil-scott-78/CooklangSharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Version>1.0.0</Version>
+    <Copyright>Copyright (c) 2024 Phil Scott</Copyright>
+    <PackageIcon>icon.png</PackageIcon>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
+
   <ItemGroup>
-    <Folder Include="Models\" />
+    <PackageReference Include="MinVer" Version="6.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>  
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="sly" Version="3.7.3" />
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\LICENSE" Pack="true" PackagePath="\" />
+    <None Include="..\icon.png" Pack="true" PackagePath="\" Condition="Exists('..\icon.png')" />
   </ItemGroup>
 
 </Project>
