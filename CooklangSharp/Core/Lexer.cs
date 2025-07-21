@@ -1,4 +1,5 @@
-﻿using CooklangSharp.Models;
+﻿using System.Collections.Immutable;
+using CooklangSharp.Models;
 
 namespace CooklangSharp.Core;
 
@@ -6,17 +7,11 @@ namespace CooklangSharp.Core;
 /// The Lexer scans the raw source text and breaks it down into a sequence of tokens.
 /// This process, also called tokenization, simplifies the work for the Parser.
 /// </summary>
-public class Lexer
+public class Lexer(string source)
 {
-    private readonly string _source;
-    private readonly List<Token> _tokens = [];
-    private readonly List<Diagnostic> _diagnostics = [];
+    private readonly ImmutableList<Token>.Builder _tokens = ImmutableList.CreateBuilder<Token>();
 
-    public Lexer(string source)
-    {
-        // Normalize line endings to ensure consistent parsing across platforms.
-        _source = PreprocessSource(source.ReplaceLineEndings(ParserConstants.NewLine.ToString()));
-    }
+    // Normalize line endings to ensure consistent parsing across platforms.
 
     /// <summary>
     /// Preprocesses the source to handle comments properly while maintaining step continuity.
@@ -33,7 +28,7 @@ public class Lexer
         }
         
         var lines = source.Split(ParserConstants.NewLine);
-        var processedLines = new List<string>();
+        var processedLines = ImmutableList.CreateBuilder<string>();
         
         for (var i = 0; i < lines.Length; i++)
         {
@@ -73,7 +68,7 @@ public class Lexer
             processedLines.Add(line);
         }
         
-        return string.Join(ParserConstants.NewLine, processedLines);
+        return string.Join(ParserConstants.NewLine, processedLines.ToImmutable());
     }
     
     /// <summary>
@@ -83,7 +78,7 @@ public class Lexer
     {
         // Simple regex-based approach to handle block comments
         var lines = source.Split(ParserConstants.NewLine);
-        var result = new List<string>();
+        var result = ImmutableList.CreateBuilder<string>();
         var inBlockComment = false;
         
         foreach (var line in lines)
@@ -149,7 +144,7 @@ public class Lexer
             }
         }
         
-        return string.Join(ParserConstants.NewLine, result);
+        return string.Join(ParserConstants.NewLine, result.ToImmutable());
     }
     
     /// <summary>
@@ -174,9 +169,10 @@ public class Lexer
     /// Performs the tokenization of the entire source string.
     /// </summary>
     /// <returns>A tuple containing the generated list of tokens and any diagnostics (errors/warnings) found.</returns>
-    public (List<Token> tokens, List<Diagnostic> diagnostics) Tokenize()
+    public (ImmutableList<Token> tokens, ImmutableList<Diagnostic> diagnostics) Tokenize()
     {
-        var lines = _source.Split(ParserConstants.NewLine);
+        var lines = PreprocessSource(source.ReplaceLineEndings(ParserConstants.NewLine.ToString()))
+            .Split(ParserConstants.NewLine);
 
         for (var i = 0; i < lines.Length; i++)
         {
@@ -190,9 +186,8 @@ public class Lexer
         }
 
         // Add a final EndOfStream token to signal the end of the input.
-        _tokens.Add(
-            new Token(TokenType.EndOfStream, string.Empty, lines.Length, lines.LastOrDefault()?.Length + 1 ?? 1));
-        return (_tokens, _diagnostics);
+        _tokens.Add(new Token(TokenType.EndOfStream, string.Empty, lines.Length, lines.LastOrDefault()?.Length + 1 ?? 1));
+        return (_tokens.ToImmutable(), ImmutableList<Diagnostic>.Empty);
     }
 
     /// <summary>
@@ -209,17 +204,6 @@ public class Lexer
             return; // Opening front matter delimiter
         }
         
-        // Check if we're inside a front matter block (opening --- was on line 1)
-        if (trimmedLine.StartsWith(ParserConstants.FrontMatterDelimiter))
-        {
-            var sourceLines = _source.Split(ParserConstants.NewLine);
-            if (sourceLines.Length > 0 && sourceLines[0].Trim() == ParserConstants.FrontMatterDelimiter)
-            {
-                // We're inside a front matter block, so ignore this closing delimiter
-                return;
-            }
-            // Otherwise, treat --- as regular text content (fall through to normal processing)
-        }
         if (trimmedLine.StartsWith(ParserConstants.CommentMarker) && !trimmedLine.StartsWith(ParserConstants.FrontMatterDelimiter)) return; // Comment-only lines are ignored.
         if (trimmedLine.StartsWith(ParserConstants.SectionMarker))
         {
@@ -241,13 +225,11 @@ public class Lexer
 
         // If it's not a line-level construct, it's a step. Process its content.
         // Comments are already stripped in preprocessing.
-        var activePart = line;
-
         var i = 0;
-        while (i < activePart.Length)
+        while (i < line.Length)
         {
             var column = i + 1;
-            var c = activePart[i];
+            var c = line[i];
 
             // Check for single-character special tokens.
             switch (c)
@@ -288,12 +270,12 @@ public class Lexer
                     // If it's not a special character, it's part of a text block.
                     // Read until the next special character is found.
                     var start = i;
-                    while (i < activePart.Length && !ParserConstants.SpecialCharacters.Contains(activePart[i]))
+                    while (i < line.Length && !ParserConstants.SpecialCharacters.Contains(line[i]))
                     {
                         i++;
                     }
 
-                    var value = activePart[start..i];
+                    var value = line[start..i];
                     _tokens.Add(new Token(TokenType.Text, value, lineNumber, start + 1));
                     break;
             }

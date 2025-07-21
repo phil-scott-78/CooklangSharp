@@ -12,7 +12,8 @@
       "Bash(grep:*)",
       "Bash(dotnet build:*)",
       "Bash(cp:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(dotnet restore:*)"
     ],
     "deny": []
   }

@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 using CooklangSharp.Models;
 
@@ -10,14 +11,14 @@ namespace CooklangSharp.Core;
 /// </summary>
 public class Parser
 {
-    private List<Token> _tokens = [];
-    private List<Diagnostic> _diagnostics = [];
+    private ImmutableList<Token> _tokens = ImmutableList<Token>.Empty;
+    private readonly ImmutableList<Diagnostic>.Builder _diagnostics = ImmutableList.CreateBuilder<Diagnostic>();
     private int _position;
 
     /// <summary>
     /// Gets the current token without consuming it.
     /// </summary>
-    private Token Current => _position < _tokens.Count ? _tokens[_position] : _tokens.Last();
+    private Token Current => _position < _tokens.Count ? _tokens[_position] : _tokens[^1];
 
     /// <summary>
     /// Consumes the current token and moves to the next one.
@@ -43,7 +44,7 @@ public class Parser
             var lexer = new Lexer(source);
             var (tokens, lexerDiagnostics) = lexer.Tokenize();
             _tokens = tokens;
-            _diagnostics = new List<Diagnostic>(lexerDiagnostics);
+            _diagnostics.AddRange(lexerDiagnostics);
             _position = 0;
 
             var recipe = new Recipe();
@@ -62,9 +63,10 @@ public class Parser
             recipe = recipe with { Sections = sectionsResult.Sections, Metadata = sectionsResult.ClassicMetadata };
 
             // 4. Result: Return the completed recipe or any errors found.
-            return _diagnostics.Any(d => d.DiagnosticType == DiagnosticType.Error)
-                ? ParseResult.CreateError(_diagnostics)
-                : ParseResult.CreateSuccess(recipe, _diagnostics);
+            var allDiagnostics = _diagnostics.ToImmutable();
+            return allDiagnostics.Any(d => d.DiagnosticType == DiagnosticType.Error)
+                ? ParseResult.CreateError(allDiagnostics.ToList())
+                : ParseResult.CreateSuccess(recipe, allDiagnostics.ToList());
         }
         catch (Exception ex)
         {
@@ -74,7 +76,7 @@ public class Parser
                 Length = 1, Context = Current.Value,
                 Type = ParseErrorType.Other, DiagnosticType = DiagnosticType.Error
             });
-            return ParseResult.CreateError(_diagnostics);
+            return ParseResult.CreateError(_diagnostics.ToImmutable().ToList());
         }
     }
 
@@ -207,9 +209,10 @@ public class Parser
     /// </summary>
     private SectionsResult ParseSections()
     {
-        var sections = new List<Section>();
-        var classicMetadata = new Dictionary<string, object>();
-        var currentSection = new Section { Name = null, Content = new List<SectionContent>() };
+        var sections = ImmutableList.CreateBuilder<Section>();
+        var classicMetadata = ImmutableDictionary.CreateBuilder<string, object>();
+        var contentBuilder = ImmutableList.CreateBuilder<SectionContent>();
+        string? currentSectionName = null;
         var stepNumber = 1;
 
         while (Current.Type != TokenType.EndOfStream)
@@ -219,14 +222,14 @@ public class Parser
             {
                 case TokenType.SectionHeader:
                     // When a new section starts, save the previous one and start a new one.
-                    if (currentSection.Name != null || currentSection.Content.Count != 0)
+                    if (currentSectionName != null || contentBuilder.Count != 0)
                     {
-                        sections.Add(currentSection);
+                        sections.Add(new Section { Name = currentSectionName, Content = contentBuilder.ToImmutable() });
+                        contentBuilder.Clear();
                         stepNumber = 1; // Reset step numbering for the new section.
                     }
 
-                    currentSection = new Section
-                        { Name = ParseSectionHeader(Current), Content = new List<SectionContent>() };
+                    currentSectionName = ParseSectionHeader(Current);
                     Advance();
                     break;
                 case TokenType.Metadata:
@@ -235,7 +238,7 @@ public class Parser
                     Advance();
                     break;
                 case TokenType.Note:
-                    currentSection.Content.Add(new NoteContent { Value = ParseNote(Current) });
+                    contentBuilder.Add(new NoteContent { Value = ParseNote(Current) });
                     Advance();
                     break;
                 case TokenType.Newline:
@@ -247,7 +250,7 @@ public class Parser
                     var step = ParseStep();
                     if (step.Items.Count != 0)
                     {
-                        currentSection.Content.Add(new StepContent { Step = step with { Number = stepNumber++ } });
+                        contentBuilder.Add(new StepContent { Step = step with { Number = stepNumber++ } });
                     }
 
                     break;
@@ -255,12 +258,12 @@ public class Parser
         }
 
         // Add the last section being processed.
-        if (currentSection.Content.Count != 0 || sections.Count == 0)
+        if (contentBuilder.Count != 0 || sections.Count == 0)
         {
-            sections.Add(currentSection);
+            sections.Add(new Section { Name = currentSectionName, Content = contentBuilder.ToImmutable() });
         }
 
-        return new SectionsResult(sections, classicMetadata);
+        return new SectionsResult(sections.ToImmutable(), classicMetadata.ToImmutable());
     }
 
     /// <summary>
@@ -304,7 +307,7 @@ public class Parser
     /// </summary>
     private Step ParseStep()
     {
-        var items = new List<Item>();
+        var items = ImmutableList.CreateBuilder<Item>();
         var stepEndTokens = new[]
             { TokenType.EndOfStream, TokenType.SectionHeader, TokenType.Metadata, TokenType.Note };
 
@@ -342,7 +345,7 @@ public class Parser
             items.Add(item);
         }
 
-        return new Step { Items = ConsolidateTextItems(items) };
+        return new Step { Items = ConsolidateTextItems(items.ToImmutable()) };
     }
 
     /// <summary>
@@ -507,10 +510,11 @@ public class Parser
                 if (wordEnd > 0)
                 {
                     sb.Append(text[..wordEnd]);
-                    // Update the current token to contain the remaining text
+                    // We'll consume the whole token and let the parser handle the remaining text
                     if (wordEnd < text.Length)
                     {
-                        _tokens[_position] = new Token(TokenType.Text, text[wordEnd..], Current.Line, Current.Column + wordEnd);
+                        // Create a new token list with the modified token
+                        _tokens = _tokens.SetItem(_position, new Token(TokenType.Text, text[wordEnd..], Current.Line, Current.Column + wordEnd));
                     }
                     else
                     {
@@ -711,11 +715,11 @@ public class Parser
     /// A final processing step to merge any consecutive TextItems into a single item
     /// for a cleaner final structure.
     /// </summary>
-    private static List<Item> ConsolidateTextItems(List<Item> items)
+    private static ImmutableList<Item> ConsolidateTextItems(ImmutableList<Item> items)
     {
         if (items.Count <= 1) return items;
 
-        var merged = new List<Item>();
+        var merged = ImmutableList.CreateBuilder<Item>();
         var textBuffer = new StringBuilder();
 
         foreach (var item in items)
@@ -741,6 +745,6 @@ public class Parser
             merged.Add(new TextItem { Value = textBuffer.ToString() });
         }
 
-        return merged;
+        return merged.ToImmutable();
     }
 }
