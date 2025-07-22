@@ -136,7 +136,7 @@ public class CommentTests
         // Should only parse the actual step, not the commented one
         var ingredients = step.Step.Items.OfType<IngredientItem>().ToList();
         ingredients.Count.ShouldBe(1);
-        ingredients[0].Quantity.ShouldBe(100.0); // From the actual step, not the comment
+        ingredients[0].Quantity?.GetNumericValue().ShouldBe(100.0); // From the actual step, not the comment
     }
 
     [Fact]

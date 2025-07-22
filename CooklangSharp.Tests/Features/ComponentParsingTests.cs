@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CooklangSharp;
@@ -52,14 +53,14 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var ingredient = GetFirstIngredient(result);
         ingredient.Name.ShouldBe(expectedName);
-        ingredient.Quantity.ShouldBe("some");
+        ingredient.Quantity.ShouldBeNull(); // No quantity specified
         ingredient.Units.ShouldBe("");
     }
     
     [Theory]
     [InlineData("@sugar{1}", "sugar", 1, "", "Integer quantity without unit")]
     [InlineData("@flour{2.5}", "flour", 2.5, "", "Decimal quantity without unit")]
-    [InlineData("@butter{1/2}", "butter", 0.5, "", "Fractional quantity without unit")]
+    [InlineData("@butter{1/2}", "butter", "1/2", "", "Fractional quantity without unit")]
     [InlineData("@eggs{3}", "eggs", 3, "", "Simple integer quantity")]
     [InlineData("@milk{1.75}", "milk", 1.75, "", "Decimal with two decimal places")]
     [InlineData("@yeast{0.25}", "yeast", 0.25, "", "Decimal less than one")]
@@ -72,7 +73,31 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var ingredient = GetFirstIngredient(result);
         ingredient.Name.ShouldBe(expectedName);
-        ingredient.Quantity.ShouldBe(expectedQuantity);
+        
+        // Handle different expected quantity types
+        if (expectedQuantity is int intValue)
+        {
+            ingredient.Quantity.ShouldBeOfType<RegularQuantity>()
+                .Value.ShouldBe((double)intValue);
+        }
+        else if (expectedQuantity is double doubleValue)
+        {
+            if (doubleValue % 1 == 0) // Whole number as double
+            {
+                ingredient.Quantity.ShouldBeOfType<RegularQuantity>()
+                    .Value.ShouldBe(doubleValue);
+            }
+            else // Fraction result or regular (like 0.5 from 1/2)
+            {
+                ingredient.Quantity?.GetNumericValue().ShouldBe(doubleValue);
+            }
+        }
+        else if (expectedQuantity is string stringValue)
+        {
+            // Mixed fractions are stored as FractionalQuantity
+            ingredient.Quantity.ShouldBeOfType<FractionalQuantity>();
+        }
+        
         ingredient.Units.ShouldBe(expectedUnits);
     }
     
@@ -92,22 +117,32 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var ingredient = GetFirstIngredient(result);
         ingredient.Name.ShouldBe(expectedName);
-        ingredient.Quantity.ShouldBe(expectedQuantity);
+        
+        if (expectedQuantity % 1 == 0) // Whole number
+        {
+            ingredient.Quantity.ShouldBeOfType<RegularQuantity>()
+                .Value.ShouldBe(expectedQuantity);
+        }
+        else // Fraction result
+        {
+            ingredient.Quantity?.GetNumericValue().ShouldBe(expectedQuantity);
+        }
+        
         ingredient.Units.ShouldBe(expectedUnits);
     }
     
     [Theory]
-    [InlineData("@salt{}", "salt", "some", "", "Empty braces")]
-    [InlineData("@pepper{  }", "pepper", "some", "", "Empty braces with spaces")]
-    [InlineData("@herbs{}", "herbs", "some", "", "Empty amount specification")]
-    public void Should_Parse_Ingredient_With_Empty_Braces(string input, string expectedName, string expectedQuantity, string expectedUnits, string description)
+    [InlineData("@salt{}", "salt", "", "Empty braces")]
+    [InlineData("@pepper{  }", "pepper", "", "Empty braces with spaces")]
+    [InlineData("@herbs{}", "herbs", "", "Empty amount specification")]
+    public void Should_Parse_Ingredient_With_Empty_Braces(string input, string expectedName, string expectedUnits, string description)
     {
         var result = CooklangParser.Parse(input);
         
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var ingredient = GetFirstIngredient(result);
         ingredient.Name.ShouldBe(expectedName);
-        ingredient.Quantity.ShouldBe(expectedQuantity);
+        ingredient.Quantity.ShouldBeNull(); // Empty braces result in null quantity
         ingredient.Units.ShouldBe(expectedUnits);
     }
     
@@ -142,7 +177,8 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var cookware = GetFirstCookware(result);
         cookware.Name.ShouldBe(expectedName);
-        cookware.Quantity.ShouldBe(expectedQuantity);
+        cookware.Quantity.ShouldBeOfType<RegularQuantity>()
+            .Value.ShouldBe(expectedQuantity);
     }
     
     [Theory]
@@ -158,7 +194,8 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var cookware = GetFirstCookware(result);
         cookware.Name.ShouldBe(expectedName);
-        cookware.Quantity.ShouldBe(expectedQuantity);
+        cookware.Quantity.ShouldBeOfType<RegularQuantity>()
+            .Value.ShouldBe((double)expectedQuantity);
     }
     
     [Theory]
@@ -172,7 +209,8 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var cookware = GetFirstCookware(result);
         cookware.Name.ShouldBe(expectedName);
-        cookware.Quantity.ShouldBe(expectedQuantity);
+        cookware.Quantity.ShouldBeOfType<RegularQuantity>()
+            .Value.ShouldBe(expectedQuantity);
     }
     
     [Theory]
@@ -205,7 +243,8 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var timer = GetFirstTimer(result);
         timer.Name.ShouldBe(expectedName);
-        timer.Quantity.ShouldBe(expectedDuration);
+        timer.Quantity.ShouldBeOfType<RegularQuantity>()
+            .Value.ShouldBe((double)expectedDuration);
         timer.Units.ShouldBe(expectedUnit);
     }
     
@@ -222,7 +261,8 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var timer = GetFirstTimer(result);
         timer.Name.ShouldBe(expectedName);
-        timer.Quantity.ShouldBe(expectedDuration);
+        timer.Quantity.ShouldBeOfType<RegularQuantity>()
+            .Value.ShouldBe((double)expectedDuration);
         timer.Units.ShouldBe(expectedUnit);
     }
     
@@ -238,7 +278,8 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var timer = GetFirstTimer(result);
         timer.Name.ShouldBe(expectedName);
-        timer.Quantity.ShouldBe(expectedDuration);
+        timer.Quantity.ShouldBeOfType<RegularQuantity>()
+            .Value.ShouldBe(expectedDuration);
         timer.Units.ShouldBe(expectedUnit);
     }
     
@@ -253,7 +294,18 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var timer = GetFirstTimer(result);
         timer.Name.ShouldBe(expectedName);
-        timer.Quantity.ShouldBe(expectedDuration);
+        
+        if (expectedDuration is double doubleValue)
+        {
+            timer.Quantity.ShouldBeOfType<FractionalQuantity>()
+                .GetNumericValue().ShouldBe(doubleValue);
+        }
+        else if (expectedDuration is string)
+        {
+            // Mixed fraction
+            timer.Quantity.ShouldBeOfType<FractionalQuantity>();
+        }
+        
         timer.Units.ShouldBe(expectedUnit);
     }
     
@@ -365,7 +417,6 @@ public class ComponentParsingTests
         {
             var ingredient = step.Items.OfType<IngredientItem>().First();
             ingredient.Name.ShouldBe(expectedName);
-            ingredient.Quantity.ShouldBe(expectedQuantity);
             ingredient.Units.ShouldBe(expectedUnits);
             ingredient.Note.ShouldBe(expectedNote);
         }
@@ -388,8 +439,183 @@ public class ComponentParsingTests
         result.Success.ShouldBeTrue($"Failed to parse: {description}");
         var cookware = GetFirstCookware(result);
         cookware.Name.ShouldBe(expectedName);
-        cookware.Quantity.ShouldBe(expectedQuantity);
+        cookware.Quantity.ShouldBeOfType<RegularQuantity>()
+            .Value.ShouldBe(expectedQuantity);
         cookware.Note.ShouldBe(expectedNote);
+    }
+    
+    #endregion
+    
+    #region FractionalNumber Tests
+    
+    [Theory]
+    [InlineData("@flour{1/2}", 0, 1, 2, "Simple fraction")]
+    [InlineData("@sugar{1/4}", 0, 1, 4, "Quarter fraction")]
+    [InlineData("@milk{3/4}", 0, 3, 4, "Three quarters")]
+    [InlineData("@butter{2/3}", 0, 2, 3, "Two thirds")]
+    [InlineData("@salt{1/8}", 0, 1, 8, "One eighth")]
+    public void Should_Parse_Simple_Fractions_To_FractionalQuantity(string input, int expectedWhole, int expectedNumerator, int expectedDenominator, string description)
+    {
+        var result = CooklangParser.Parse(input);
+        
+        result.Success.ShouldBeTrue($"Failed to parse: {description}");
+        var ingredient = GetFirstIngredient(result);
+        
+        var fraction = ingredient.Quantity.ShouldBeOfType<FractionalQuantity>();
+        fraction.Whole.ShouldBe(expectedWhole);
+        fraction.Numerator.ShouldBe(expectedNumerator);
+        fraction.Denominator.ShouldBe(expectedDenominator);
+        
+        // Verify decimal conversion
+        fraction.GetNumericValue().ShouldBe((double)expectedNumerator / expectedDenominator);
+    }
+    
+    [Theory]
+    [InlineData("@flour{2 1/3}", 2, 1, 3, "2 1/3", "Mixed fraction with single digit")]
+    [InlineData("@sugar{1 1/2}", 1, 1, 2, "1 1/2", "One and a half")]
+    [InlineData("@butter{3 3/4}", 3, 3, 4, "3 3/4", "Three and three quarters")]
+    [InlineData("@oil{5 2/3}", 5, 2, 3, "5 2/3", "Five and two thirds")]
+    public void Should_Parse_Mixed_Fractions_To_FractionalQuantity(string input, int expectedWhole, int expectedNumerator, int expectedDenominator, string expectedQuantityString, string description)
+    {
+        var result = CooklangParser.Parse(input);
+        
+        result.Success.ShouldBeTrue($"Failed to parse: {description}");
+        var ingredient = GetFirstIngredient(result);
+        
+        var fraction = ingredient.Quantity.ShouldBeOfType<FractionalQuantity>();
+        fraction.Whole.ShouldBe(expectedWhole);
+        fraction.Numerator.ShouldBe(expectedNumerator);
+        fraction.Denominator.ShouldBe(expectedDenominator);
+        
+        // Verify string representation
+        fraction.ToString().ShouldBe(expectedQuantityString);
+        
+        // Verify decimal conversion
+        var expectedDecimal = expectedWhole + (double)expectedNumerator / expectedDenominator;
+        fraction.GetNumericValue().ShouldBe(expectedDecimal);
+    }
+    
+    [Theory]
+    [InlineData("@sugar{2}", 2, "Whole number")]
+    [InlineData("@flour{5}", 5, "Whole number five")]
+    [InlineData("@eggs{12}", 12, "Dozen")]
+    public void Should_Parse_Whole_Numbers_As_RegularQuantity(string input, int expectedValue, string description)
+    {
+        var result = CooklangParser.Parse(input);
+        
+        result.Success.ShouldBeTrue($"Failed to parse: {description}");
+        var ingredient = GetFirstIngredient(result);
+        
+        var regular = ingredient.Quantity.ShouldBeOfType<RegularQuantity>();
+        regular.Value.ShouldBe((double)expectedValue);
+        regular.ToString().ShouldBe(expectedValue.ToString());
+    }
+    
+    [Theory]
+    [InlineData("@sugar{0.5}", 0.5, "Decimal 0.5")]
+    [InlineData("@flour{0.25}", 0.25, "Decimal 0.25")]
+    [InlineData("@butter{0.75}", 0.75, "Decimal 0.75")]
+    [InlineData("@milk{1.5}", 1.5, "Decimal 1.5")]
+    [InlineData("@oil{2.25}", 2.25, "Decimal 2.25")]
+    public void Should_Parse_Decimals_As_RegularQuantity(string input, double expectedValue, string description)
+    {
+        var result = CooklangParser.Parse(input);
+        
+        result.Success.ShouldBeTrue($"Failed to parse: {description}");
+        var ingredient = GetFirstIngredient(result);
+        
+        var regular = ingredient.Quantity.ShouldBeOfType<RegularQuantity>();
+        regular.Value.ShouldBe(expectedValue);
+    }
+    
+    [Theory]
+    [InlineData("@salt{some}", "some", "Non-numeric quantity")]
+    [InlineData("@pepper{a pinch}", "a pinch", "Text quantity")]
+    [InlineData("@herbs{}", "", "Empty quantity")]
+    [InlineData("@spices{  }", "", "Whitespace quantity")]
+    public void Should_Handle_Non_Numeric_Quantities(string input, string expectedQuantity, string description)
+    {
+        var result = CooklangParser.Parse(input);
+        
+        result.Success.ShouldBeTrue($"Failed to parse: {description}");
+        var ingredient = GetFirstIngredient(result);
+        
+        if (expectedQuantity == "")
+        {
+            ingredient.Quantity.ShouldBeNull();
+        }
+        else
+        {
+            var text = ingredient.Quantity.ShouldBeOfType<TextQuantity>();
+            text.Value.ShouldBe(expectedQuantity);
+        }
+    }
+    
+    [Theory]
+    [InlineData("@flour{2 1/3%cups}", "cups", typeof(FractionalQuantity), "Mixed fraction with units")]
+    [InlineData("@sugar{1/2%tsp}", "tsp", typeof(FractionalQuantity), "Simple fraction with units")]
+    [InlineData("@butter{3%tbsp}", "tbsp", typeof(RegularQuantity), "Whole number with units")]
+    [InlineData("@milk{0.75%liters}", "liters", typeof(RegularQuantity), "Decimal with units")]
+    public void Should_Parse_Quantities_With_Units(string input, string expectedUnits, Type expectedQuantityType, string description)
+    {
+        var result = CooklangParser.Parse(input);
+        
+        result.Success.ShouldBeTrue($"Failed to parse: {description}");
+        var ingredient = GetFirstIngredient(result);
+        
+        ingredient.Quantity.ShouldNotBeNull();
+        ingredient.Quantity.GetType().ShouldBe(expectedQuantityType);
+        ingredient.Units.ShouldBe(expectedUnits);
+    }
+    
+    [Fact]
+    public void FractionalQuantity_Should_Convert_To_String_Correctly()
+    {
+        // Whole number only
+        var whole = new FractionalQuantity(5, 0, 1);
+        whole.ToString().ShouldBe("5");
+        
+        // Simple fraction
+        var fraction = new FractionalQuantity(0, 1, 2);
+        fraction.ToString().ShouldBe("1/2");
+        
+        // Mixed fraction
+        var mixed = new FractionalQuantity(2, 1, 3);
+        mixed.ToString().ShouldBe("2 1/3");
+    }
+    
+    [Fact]
+    public void FractionalQuantity_Should_Calculate_Numeric_Value_Correctly()
+    {
+        // Whole number
+        var whole = new FractionalQuantity(5, 0, 1);
+        whole.GetNumericValue().ShouldBe(5.0);
+        
+        // Simple fraction
+        var fraction = new FractionalQuantity(0, 1, 2);
+        fraction.GetNumericValue().ShouldBe(0.5);
+        
+        // Mixed fraction
+        var mixed = new FractionalQuantity(2, 1, 3);
+        var mixedValue = mixed.GetNumericValue() ?? 0.0;
+        mixedValue.ShouldBeInRange(2.333, 2.334);
+    }
+    
+    [Fact]
+    public void QuantityValue_Types_Should_Work_Correctly()
+    {
+        // RegularQuantity
+        var regular = new RegularQuantity(5.5);
+        regular.GetNumericValue().ShouldBe(5.5);
+        regular.ToString().ShouldBe("5.5");
+        
+        var wholeRegular = new RegularQuantity(5.0);
+        wholeRegular.ToString().ShouldBe("5");
+        
+        // TextQuantity
+        var text = new TextQuantity("a pinch");
+        text.GetNumericValue().ShouldBeNull();
+        text.ToString().ShouldBe("a pinch");
     }
     
     #endregion

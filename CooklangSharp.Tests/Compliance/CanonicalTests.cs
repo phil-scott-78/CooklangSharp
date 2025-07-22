@@ -154,45 +154,55 @@ public class CanonicalTests
         }
     }
 
-    private void CompareQuantity(string testName, int stepIndex, int itemIndex, object actual, object? expected)
+    private void CompareQuantity(string testName, int stepIndex, int itemIndex, QuantityValue? actual, object? expected)
     {
         if (expected == null)
         {
+            if (actual != null)
+            {
+                if (actual is TextQuantity { Value: "" })
+                {
+                    return; // This is acceptable
+                }
+            }
             return; // No quantity to compare
         }
         
         // Handle different quantity representations
-        if (expected is string expectedStr && actual is string actualStr)
+        if (expected is string expectedStr)
         {
-            actualStr.ShouldBe(expectedStr, 
-                $"Test {testName}: Step {stepIndex}, Item {itemIndex} quantity mismatch");
-        }
-        else if (expected is double expectedDouble && actual is double actualDouble)
-        {
-            actualDouble.ShouldBe(expectedDouble, tolerance: 0.0001,
-                $"Test {testName}: Step {stepIndex}, Item {itemIndex} quantity mismatch");
-        }
-        else if (expected is int expectedInt)
-        {
-            if (actual is double actualAsDouble)
+            if (actual is TextQuantity textQuantity)
             {
-                actualAsDouble.ShouldBe(expectedInt, tolerance: 0.0001,
+                textQuantity.Value.ShouldBe(expectedStr, 
                     $"Test {testName}: Step {stepIndex}, Item {itemIndex} quantity mismatch");
             }
-            else if (actual is int actualAsInt)
+            else if (actual is FractionalQuantity fractionalQuantity)
             {
-                actualAsInt.ShouldBe(expectedInt,
+                // Mixed fractions are represented as strings in canonical tests
+                fractionalQuantity.GetNumericValue().ToString().ShouldBe(expectedStr,
                     $"Test {testName}: Step {stepIndex}, Item {itemIndex} quantity mismatch");
             }
             else
             {
-                actual.ToString().ShouldBe(expectedInt.ToString(),
+                actual?.ToString().ShouldBe(expectedStr,
                     $"Test {testName}: Step {stepIndex}, Item {itemIndex} quantity mismatch");
             }
         }
+        else if (expected is double expectedDouble)
+        {
+            var actualValue = actual?.GetNumericValue() ?? 0.0;
+            actualValue.ShouldBe(expectedDouble, tolerance: 0.0001,
+                $"Test {testName}: Step {stepIndex}, Item {itemIndex} quantity mismatch");
+        }
+        else if (expected is int expectedInt)
+        {
+            var actualValue = actual?.GetNumericValue() ?? 0.0;
+            actualValue.ShouldBe(expectedInt, tolerance: 0.0001,
+                $"Test {testName}: Step {stepIndex}, Item {itemIndex} quantity mismatch");
+        }
         else
         {
-            actual.ToString().ShouldBe(expected.ToString(),
+            actual?.ToString().ShouldBe(expected.ToString(),
                 $"Test {testName}: Step {stepIndex}, Item {itemIndex} quantity mismatch");
         }
     }

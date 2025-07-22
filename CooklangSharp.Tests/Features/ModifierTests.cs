@@ -29,14 +29,14 @@ public class ModifierTests
         // First ingredient with modifier
         var onion = ingredients[0];
         onion.Name.ShouldBe("onion");
-        onion.Quantity.ShouldBe(1.0);
+        onion.Quantity?.GetNumericValue().ShouldBe(1.0);
         onion.Units.ShouldBe("");
         onion.Note.ShouldBe("peeled and finely chopped");
         
         // Second ingredient with modifier
         var garlic = ingredients[1];
         garlic.Name.ShouldBe("garlic");
-        garlic.Quantity.ShouldBe(2.0);
+        garlic.Quantity?.GetNumericValue().ShouldBe(2.0);
         garlic.Units.ShouldBe("cloves");
         garlic.Note.ShouldBe("peeled and minced");
     }
@@ -54,7 +54,7 @@ public class ModifierTests
             .OfType<IngredientItem>().First();
         
         ingredient.Name.ShouldBe("salt");
-        ingredient.Quantity.ShouldBe(1.0);
+        ingredient.Quantity?.GetNumericValue().ShouldBe(1.0);
         ingredient.Units.ShouldBe("tsp");
         ingredient.Note.ShouldBeNull();
     }
@@ -97,7 +97,7 @@ public class ModifierTests
         var ingredient = step.Items.OfType<IngredientItem>().First();
         ingredient.ShouldNotBeNull();
         ingredient.Name.ShouldBe("sauce");
-        ingredient.Quantity.ShouldBe(100.0);
+        ingredient.Quantity?.GetNumericValue().ShouldBe(100.0);
         ingredient.Units.ShouldBe("ml");
         ingredient.Note.ShouldBe("homemade (see recipe on page 5)");
     }

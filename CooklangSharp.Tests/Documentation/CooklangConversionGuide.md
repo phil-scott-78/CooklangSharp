@@ -59,14 +59,16 @@ Convert the following recipe to Cooklang format:
 [PASTE YOUR RECIPE HERE]
 
 Guidelines:
-1. Identify all ingredients and mark them with @ (use {} for multi-word ingredients)
-2. Add quantities and units where specified (format: {amount%unit})
-3. Mark all cookware with # (use {} for multi-word cookware)
-4. Convert time references to timers using ~ (format: ~{duration%unit})
-5. Organize into logical sections using == Section Name ==
-6. Add metadata at the top using YAML front matter (servings, prep time, cook time, etc.)
-7. Keep preparation notes in parentheses after ingredients
-8. Preserve the recipe's natural flow and readability
+1. DO NOT create separate ingredient lists - define ingredients inline as you write the recipe steps
+2. Mark ingredients with @ when they are first used in the recipe (use {} for multi-word ingredients)
+3. Add quantities and units inline where specified (format: {amount%unit})
+4. Mark all cookware with # (use {} for multi-word cookware)
+5. Convert time references to timers using ~ (format: ~{duration%unit})
+6. Organize into logical sections using == Section Name ==
+7. Add metadata at the top using YAML front matter (servings, prep time, cook time, etc.)
+8. Keep preparation notes in parentheses after ingredients
+9. Write in a natural, conversational style that flows like cooking instructions
+10. Example: "Crack the @eggs{3} into a #blender, then add the @plain flour{125%g}"
 ```
 
 ## Conversion Examples
@@ -100,19 +102,16 @@ Instructions:
 servings: 4
 ---
 
-== Ingredients ==
-Gather @pasta{400%g}, @cherry tomatoes{2%cups}, @garlic{3%cloves}, @olive oil{1/4%cup}, @fresh basil leaves{}, @salt, and @pepper.
-
 == Cooking ==
-Boil water in a #large pot{} and cook @pasta for ~{10%minutes}.
+Boil water in a #large pot{} and cook @pasta{400%g} for ~{10%minutes}.
 
-Meanwhile, heat @olive oil in a #pan{} and sauté @garlic for ~{2%minutes}.
+Meanwhile, heat @olive oil{1/4%cup} in a #pan{} and sauté @garlic{3%cloves} for ~{2%minutes}.
 
-Add @cherry tomatoes and cook for ~{5%minutes} until soft.
+Add @cherry tomatoes{2%cups} and cook for ~{5%minutes} until soft.
 
 Drain pasta and toss with tomato mixture.
 
-Garnish with @fresh basil leaves and season with @salt and @pepper.
+Garnish with @fresh basil leaves{} and season with @salt{} and @pepper{}.
 ```
 
 ### Example 2: Complex Recipe Conversion
@@ -152,22 +151,16 @@ prep time: 20 minutes
 cook time: 2 hours
 ---
 
-== Preparation ==
-@beef chuck{2%lbs}(cubed)
-@carrots{3}(diced)
-@onions{2}(chopped)
-@potatoes{4}(quartered)
-
 == Cooking ==
-Season @beef chuck with @salt{} and @pepper{}. Brown in a #Dutch oven{} over high heat.
+Season @beef chuck{2%lbs}(cubed) with @salt{} and @pepper{}. Brown in a #Dutch oven{} over high heat.
 
-Remove beef, reduce heat to medium. Add @onions and cook until soft for ~{5%minutes}.
+Remove beef, reduce heat to medium. Add @onions{2}(chopped) and cook until soft for ~{5%minutes}.
 
 Add @tomato paste{2%tbsp}, cook for ~{1%minute}. Add @beef broth{4%cups}, @dried thyme{1%tsp}, and @bay leaves{2}.
 
 Return beef, bring to boil. Reduce heat, cover, and simmer for ~{1%hour}.
 
-Add @carrots and @potatoes. Continue simmering for ~{45%minutes} until tender.
+Add @carrots{3}(diced) and @potatoes{4}(quartered). Continue simmering for ~{45%minutes} until tender.
 ```
 
 ### Example 3: Baking Recipe Conversion
@@ -210,10 +203,9 @@ makes: 24 cookies
 
 == Preparation ==
 -- Preheat oven to 375°F
-@butter{1%cup}(softened)
 
 == Mixing ==
-Cream @butter and @sugar{3/4%cup} and @brown sugar{3/4%cup} in a #mixing bowl{} until fluffy.
+Cream @butter{1%cup}(softened) and @sugar{3/4%cup} and @brown sugar{3/4%cup} in a #mixing bowl{} until fluffy.
 
 Beat in @eggs{2} and @vanilla{1%tsp}.
 
@@ -227,27 +219,35 @@ Drop on #baking sheets{} and bake for ~baking{9-11%minutes}.
 
 ## Conversion Tips
 
-### 1. Ingredient Recognition
+### 1. Inline Ingredient Definition
+- **CRITICAL**: Do NOT create separate ingredient lists or sections
+- Define ingredients inline when they are first used in the recipe
+- Example: "Heat @olive oil{2%tbsp} in a #pan{}" NOT "Heat olive oil..."
+- The first mention of an ingredient should include its full quantity
+
+### 2. Ingredient Recognition
 - Look for measurement words: cup, tbsp, tsp, oz, g, kg, ml, L
 - Numbers before ingredients usually indicate amounts
 - "Some", "a pinch of", "to taste" → use empty braces `{}`
+- Multi-word ingredients need braces: `@olive oil{}`, `@red bell pepper{}`
 
-### 2. Cookware Identification
+### 3. Cookware Identification
 - Common cookware: pot, pan, skillet, bowl, baking sheet, Dutch oven
 - Size descriptors become part of the name: `#large pot{}`
 - Quantity words (2 bowls) → `#bowl{2}`
 
-### 3. Timer Extraction
+### 4. Timer Extraction
 - Look for time phrases: "for X minutes", "until", "about X hours"
 - Named timers for specific actions: `~marinate{2%hours}`, `~rest{10%minutes}`
 - Ranges can be kept: `~{9-11%minutes}`
 
-### 4. Section Organization
+### 5. Section Organization
 - Group by logical cooking phases: Prep, Cooking, Assembly, Serving
 - Keep related steps together
 - Use descriptive section names
+- Don't create an "Ingredients" section - ingredients are defined inline!
 
-### 5. Metadata Extraction
+### 6. Metadata Extraction
 - Common metadata: servings, yield, prep time, cook time, total time
 - Course type: appetizer, main, dessert
 - Dietary info: vegetarian, gluten-free, etc.

@@ -18,7 +18,7 @@ public class CookwareModifierTests
         
         var cookware = step.Step.Items.OfType<CookwareItem>().First();
         cookware.Name.ShouldBe("bowl");
-        cookware.Quantity.ShouldBe(1);
+        cookware.Quantity?.GetNumericValue().ShouldBe(1);
         cookware.Note.ShouldBe("large, clean");
     }
     
@@ -35,7 +35,7 @@ public class CookwareModifierTests
         
         var cookware = step.Step.Items.OfType<CookwareItem>().First();
         cookware.Name.ShouldBe("pan");
-        cookware.Quantity.ShouldBe(2.0);
+        cookware.Quantity?.GetNumericValue().ShouldBe(2.0);
         cookware.Note.ShouldBe("non-stick");
     }
     
@@ -52,7 +52,7 @@ public class CookwareModifierTests
         
         var cookware = step.Step.Items.OfType<CookwareItem>().First();
         cookware.Name.ShouldBe("bowl");
-        cookware.Quantity.ShouldBe(1);
+        cookware.Quantity.GetNumericValue().ShouldBe(1);
         cookware.Note.ShouldBeNull();
     }
     

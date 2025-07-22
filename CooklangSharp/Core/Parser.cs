@@ -399,9 +399,14 @@ public class Parser
         // An ingredient has a name, an optional quantity/unit, and an optional modifier.
         var name = ReadComponentName();
         
-        object quantity = ParserConstants.DefaultQuantity;
+        QuantityValue? quantity = null;
         var units = "";
-        if (Current.Type == TokenType.LBrace) (quantity, units) = ParseQuantityAndUnits();
+        if (Current.Type == TokenType.LBrace)
+        {
+            var (parsedQuantity, parsedUnits) = ParseQuantityAndUnits();
+            quantity = parsedQuantity;
+            units = parsedUnits;
+        }
 
         string? note = null;
         if (Current.Type == TokenType.LParen) note = ParseModifier();
@@ -422,13 +427,23 @@ public class Parser
         
         var name = ReadComponentName();
         
-        object quantity = 1;
+        QuantityValue quantity = new RegularQuantity(1);
         var units = "";
         if (Current.Type == TokenType.LBrace)
         {
-            (quantity, units) = ParseQuantityAndUnits();
+            var (parsedQuantity, parsedUnits) = ParseQuantityAndUnits();
+            units = parsedUnits;
+            
             // If quantity is explicitly empty or "some", it defaults to 1 for cookware.
-            if (quantity is string s && (string.IsNullOrWhiteSpace(s) || s == ParserConstants.DefaultQuantity)) quantity = 1;
+            if (parsedQuantity is null or TextQuantity { Value: "" })
+            {
+                quantity = new RegularQuantity(1);
+            }
+            
+            else
+            {
+                quantity = parsedQuantity;
+            }
         }
 
         string? note = null;
@@ -450,18 +465,21 @@ public class Parser
         
         var name = ReadComponentName();
         
-        object quantity = string.Empty;
+        QuantityValue? quantity = new TextQuantity("");
         var units = "";
         var hadBraces = false;
         if (Current.Type == TokenType.LBrace)
         {
             hadBraces = true;
-            (quantity, units) = ParseQuantityAndUnits();
+            var (parsedQuantity, parsedUnits) = ParseQuantityAndUnits();
+            quantity = parsedQuantity;
+            units = parsedUnits;
         }
 
         // A timer is only invalid if it has empty braces ~{}
         // Timers with just a name (like ~rest) are valid according to canonical tests
-        if (hadBraces && string.IsNullOrWhiteSpace(name) && (quantity.ToString() == string.Empty || quantity.ToString() == ParserConstants.DefaultQuantity))
+        if (hadBraces && string.IsNullOrWhiteSpace(name) && 
+            (quantity is null or TextQuantity { Value: "" }))
         {
             AddSyntaxError("Invalid timer syntax: timer must have either a name or duration", 
                 startToken, ParseErrorType.InvalidTimerSyntax, 1);
@@ -603,7 +621,7 @@ public class Parser
     /// <summary>
     /// Parses the quantity and units from within curly braces (e.g., "{1%cup}").
     /// </summary>
-    private (object quantity, string units) ParseQuantityAndUnits()
+    private (QuantityValue? quantity, string units) ParseQuantityAndUnits()
     {
         var startToken = Current; // The '{' token.
         Advance(); // Consume '{'.
@@ -666,50 +684,84 @@ public class Parser
     }
 
     /// <summary>
-    /// Parses the string representation of a quantity into a number or returns it as a string.
+    /// Parses the string representation of a quantity into appropriate QuantityValue type.
     /// </summary>
-    private object ParseQuantity(string quantityStr, Token contextToken)
+    private QuantityValue? ParseQuantity(string quantityStr, Token contextToken)
     {
-        if (string.IsNullOrWhiteSpace(quantityStr)) return ParserConstants.DefaultQuantity;
+        if (string.IsNullOrWhiteSpace(quantityStr)) 
+            return null;
 
         quantityStr = quantityStr.Trim();
 
-        // Handle fractions like "1/2", but preserve unusual formats like "01/2".
-        if (!quantityStr.Contains('/'))
+        // Check for mixed fractions like "2 1/3"
+        var mixedFractionMatch = System.Text.RegularExpressions.Regex.Match(quantityStr, @"^(\d+)\s+(\d+)/(\d+)$");
+        if (mixedFractionMatch.Success)
         {
-            return double.TryParse(quantityStr, out var noSlashDouble) ? noSlashDouble : quantityStr;
-        }
-        
-        var parts = quantityStr.Split('/');
-        if (parts.Length != 2 || !double.TryParse(parts[0].Trim(), out var num) || !double.TryParse(parts[1].Trim(), out var den))
-        {
-            return double.TryParse(quantityStr, out var finalTry) ? finalTry : quantityStr;
-        }
-        
-        if (den == 0)
-        {
-            AddDiagnostic(new Diagnostic
+            if (int.TryParse(mixedFractionMatch.Groups[1].Value, out var whole) &&
+                int.TryParse(mixedFractionMatch.Groups[2].Value, out var numerator) &&
+                int.TryParse(mixedFractionMatch.Groups[3].Value, out var denominator))
             {
-                Message = "Division by zero in fraction", 
-                Line = contextToken.Line,
-                Column = contextToken.Column + 1, // Position inside the brace
-                Length = quantityStr.Length, 
-                Context = quantityStr,
-                Type = ParseErrorType.InvalidQuantity, 
-                DiagnosticType = DiagnosticType.Error
-            });
-            return quantityStr;
+                if (denominator == 0)
+                {
+                    AddDiagnostic(new Diagnostic
+                    {
+                        Message = "Division by zero in fraction", 
+                        Line = contextToken.Line,
+                        Column = contextToken.Column + 1,
+                        Length = quantityStr.Length, 
+                        Context = quantityStr,
+                        Type = ParseErrorType.InvalidQuantity, 
+                        DiagnosticType = DiagnosticType.Error
+                    });
+                    return new TextQuantity(quantityStr);
+                }
+                return new FractionalQuantity(whole, numerator, denominator);
+            }
         }
 
-        // Don't convert fractions that start with 0 (like "01/2") - preserve as text
-        var numeratorText = parts[0].Trim();
-        if (numeratorText.StartsWith('0') && numeratorText.Length > 1)
+        // Handle simple fractions like "1/2", but preserve unusual formats like "01/2".
+        if (quantityStr.Contains('/'))
         {
-            return quantityStr;
-        }
+            var parts = quantityStr.Split('/');
+            if (parts.Length == 2 && double.TryParse(parts[0].Trim(), out var num) && double.TryParse(parts[1].Trim(), out var den))
+            {
+                if (den == 0)
+                {
+                    AddDiagnostic(new Diagnostic
+                    {
+                        Message = "Division by zero in fraction", 
+                        Line = contextToken.Line,
+                        Column = contextToken.Column + 1,
+                        Length = quantityStr.Length, 
+                        Context = quantityStr,
+                        Type = ParseErrorType.InvalidQuantity, 
+                        DiagnosticType = DiagnosticType.Error
+                    });
+                    return new TextQuantity(quantityStr);
+                }
 
-        return num / den;
+                // Don't convert fractions that start with 0 (like "01/2") - preserve as text
+                var numeratorText = parts[0].Trim();
+                if (numeratorText.StartsWith('0') && numeratorText.Length > 1)
+                {
+                    return new TextQuantity(quantityStr);
+                }
+
+                // For simple fractions, create FractionalQuantity
+                return new FractionalQuantity(0, (int)num, (int)den);
+            }
+        }
+        
+        // Try parsing as a regular number
+        if (double.TryParse(quantityStr, out var doubleValue))
+        {
+            return new RegularQuantity(doubleValue);
+        }
+        
+        // Otherwise, it's text
+        return new TextQuantity(quantityStr);
     }
+
 
     /// <summary>
     /// A final processing step to merge any consecutive TextItems into a single item

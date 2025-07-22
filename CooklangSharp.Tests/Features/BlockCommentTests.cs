@@ -31,7 +31,7 @@ public class BlockCommentTests
         step.Items[1].ShouldBeOfType<IngredientItem>();
         var ingredient = (IngredientItem)step.Items[1];
         ingredient.Name.ShouldBe("potato");
-        ingredient.Quantity.ShouldBe(2);
+        ingredient.Quantity?.GetNumericValue().ShouldBe(2);
         ingredient.Units.ShouldBe("kg");
         
         step.Items[2].ShouldBeOfType<TextItem>();

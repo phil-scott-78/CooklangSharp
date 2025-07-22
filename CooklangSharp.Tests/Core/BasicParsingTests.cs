@@ -35,7 +35,7 @@ public class BasicParsingTests
         var ingredient = stepContent.Step.Items[0] as IngredientItem;
         ingredient.ShouldNotBeNull();
         ingredient.Name.ShouldBe("chilli");
-        ingredient.Quantity.ShouldBe(3.0);
+        ingredient.Quantity.ShouldBeOfType<RegularQuantity>().Value.ShouldBe(3.0);
         ingredient.Units.ShouldBe("items");
     }
 
@@ -55,7 +55,7 @@ public class BasicParsingTests
         var ingredient = stepContent.Step.Items[0] as IngredientItem;
         ingredient.ShouldNotBeNull();
         ingredient.Name.ShouldBe("chilli");
-        ingredient.Quantity.ShouldBe("some");
+        ingredient.Quantity.ShouldBeNull(); // No quantity specified for @chilli
         ingredient.Units.ShouldBe("");
     }
 

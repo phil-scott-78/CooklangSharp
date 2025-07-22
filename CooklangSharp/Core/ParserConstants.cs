@@ -6,7 +6,7 @@ namespace CooklangSharp.Core;
 internal static class ParserConstants
 {
     // Default values
-    public const string DefaultQuantity = "some";
+    public const string DefaultQuantity = "";
     
     // Comment and metadata markers
     public const string CommentMarker = "--";

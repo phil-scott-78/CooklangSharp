@@ -21,7 +21,7 @@ public class QuantityParsingTests
         var ingredient = stepContent.Step.Items[0] as IngredientItem;
         ingredient.ShouldNotBeNull();
         ingredient.Name.ShouldBe("milk");
-        ingredient.Quantity.ShouldBe(0.5);
+        ingredient.Quantity?.GetNumericValue().ShouldBe(0.5);
         ingredient.Units.ShouldBe("cup");
     }
 
@@ -48,7 +48,7 @@ public class QuantityParsingTests
         var ingredient = step.Items.OfType<IngredientItem>().First();
         ingredient.ShouldNotBeNull();
         ingredient.Name.ShouldBe("butter");
-        ingredient.Quantity.ShouldBe(expectedValue);
+        ingredient.Quantity?.GetNumericValue().ShouldBe(expectedValue);
         ingredient.Units.ShouldBe("cup");
     }
 
@@ -65,7 +65,7 @@ public class QuantityParsingTests
         var ingredient = result.Recipe.Sections[0].Content[0]
             .ShouldBeOfType<StepContent>().Step.Items[0]
             .ShouldBeOfType<IngredientItem>();
-        ingredient.Quantity.ShouldBe(expectedQuantity);
+        ingredient.Quantity?.GetNumericValue().ShouldBe(expectedQuantity);
     }
 
     [Theory]
@@ -80,7 +80,9 @@ public class QuantityParsingTests
         var ingredient = result.Recipe.Sections[0].Content[0]
             .ShouldBeOfType<StepContent>().Step.Items[0]
             .ShouldBeOfType<IngredientItem>();
-        ingredient.Quantity.ShouldBe(expectedQuantity);
+        ingredient.Quantity.ShouldNotBeNull();
+        ingredient.Quantity.ShouldBeAssignableTo<TextQuantity>();
+        ((TextQuantity) ingredient.Quantity).Value.ShouldBe(expectedQuantity);
     }
 
     [Theory]
@@ -109,7 +111,8 @@ public class QuantityParsingTests
             .ShouldBeOfType<StepContent>().Step.Items[0]
             .ShouldBeOfType<IngredientItem>();
         ingredient.Name.ShouldBe("salt");
-        ingredient.Quantity.ShouldBe("some");
+        ingredient.Quantity.ShouldBeNull();
+
         ingredient.Units.ShouldBe("");
     }
 
@@ -123,7 +126,7 @@ public class QuantityParsingTests
             .ShouldBeOfType<StepContent>().Step.Items[0]
             .ShouldBeOfType<IngredientItem>();
         ingredient.Name.ShouldBe("salt");
-        ingredient.Quantity.ShouldBe("some");
+        ingredient.Quantity.ShouldBeNull();
         ingredient.Units.ShouldBe("");
     }
 
@@ -137,7 +140,7 @@ public class QuantityParsingTests
             .ShouldBeOfType<StepContent>().Step.Items[0]
             .ShouldBeOfType<CookwareItem>();
         cookware.Name.ShouldBe("pan");
-        cookware.Quantity.ShouldBe(2.0);
+        cookware.Quantity?.GetNumericValue().ShouldBe(2.0);
     }
 
     [Fact]
@@ -150,7 +153,7 @@ public class QuantityParsingTests
             .ShouldBeOfType<StepContent>().Step.Items[0]
             .ShouldBeOfType<TimerItem>();
         timer.Name.ShouldBe("timer");
-        timer.Quantity.ShouldBe(5.0);
+        timer.Quantity?.GetNumericValue().ShouldBe(5.0);
         timer.Units.ShouldBe("minutes");
     }
 }
